@@ -135,14 +135,16 @@ End-to-end quality gate before a story is considered done.
 
 1. Download the `docs` folder into your project
 
-2. Install OpenSpec from https://github.com/Fission-AI/OpenSpec/ and ensure these commands are available: explore, propose, apply, verify, sync, archive
-
-3. Run the script in `./docs/sdlc`:
+2. Run the script in `./docs/sdlc`:
 
     - **Linux / macOS**: `./docs/sdlc/sdlc_init_claude_code.sh`
     - **Windows** (PowerShell, Developer Mode or elevated): `.\docs\sdlc\sdlc_init_claude_code.ps1`
 
    The script will creates a `CLAUDE.md → AGENTS.md` symlink in the project root and links SDLC command files into `.claude/commands/sdlc/`.
+
+3. Install OpenSpec o your machine from https://github.com/Fission-AI/OpenSpec/ and:
+    - Initialise it in your project folder: `openspec init`
+    - Type `openspec config profile`, select "workflows only", and ensure these commands are available: explore, propose, apply, verify, sync, archive
 
 4. Tailor user story management by customising guidelines-userstories.md, with an MCP or whatever you use to handle them. By default it's expecting a list of md files.
 
