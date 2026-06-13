@@ -175,16 +175,16 @@ These files can and should be fully customised according to the project, so that
 
 Currently we have these three files, but can obviously be extended.
 
-- [guidelines-android](../guidelines/guidelines-android.md) for Android native code style and best practices
-- [guidelines-git](../guidelines/guidelines-git.md) for git operations and commit conventions
-- [guidelines-process](../guidelines/guidelines-process.md) for general guidelines
+- [guidelines-android](docs/guidelines/guidelines-android.md) for Android native code style and best practices
+- [guidelines-git](docs/guidelines/guidelines-git.md) for git operations and commit conventions
+- [guidelines-process](docs/guidelines/guidelines-process.md) for general guidelines
 
 #### Loaded by SDLC commands
 
 The other guidelines file are primarily used by the SDLC commands and describe how to handle specific inputs and outputs.
 
-- [guidelines-userstories](../guidelines/guidelines-userstories.md) for handling the user story backlog, this currently uses md files, but can use an MCP to access jira or any other tool.
-- [guidelines-reports](../guidelines/guidelines-reports.md) for auditing reports, currently uses an HTML file but can be customised in any way.
+- [guidelines-userstories](docs/guidelines/guidelines-userstories.md) for handling the user story backlog, this currently uses md files, but can use an MCP to access jira or any other tool.
+- [guidelines-reports](docs/guidelines/guidelines-reports.md) for auditing reports, currently uses an HTML file but can be customised in any way.
 
 (These are a category on their own, so they will likely change name at some point.)
 
