@@ -63,8 +63,7 @@ app/src/main/java/<package-name>/
   - **Mappers** (DTO → domain) belong in `data/mapper/` — they operate on data-layer inputs and produce domain outputs.
   - **Repository implementations** (in `data/repository/`) own the mapping step: parse/fetch the data-layer representation, apply the mapper, and return a domain model.
   - **Use cases** receive domain models directly from the repository and must not perform DTO-to-domain mapping.
-  - **DTO nullability**: DTOs should generally declare their fields as nullable to avoid crashes on incomplete or unexpected responses from external sources. This default can be overridden on a case-by-case basis when a field is guaranteed to be present.
-
+  
 - **MVI Contract**: Each feature exposes a clear contract between View and ViewModel:
   - `UiState`: a single immutable `data class` representing the full UI state. Default to a sensible initial state.
   - `UiIntent`: a `sealed class` listing every user action the screen can trigger (e.g. `OnButtonClicked`, `OnTextChanged`).
@@ -266,6 +265,6 @@ Unit tests should follow these criteria:
 - Assert UI elements are displayed using `onNodeWithText`, `onNodeWithContentDescription`, etc.
 - Assert user interactions fire the correct `UiIntent` by collecting intents in a `mutableListOf` passed to `onIntent`.
 - When a text string appears in multiple nodes (e.g. a button label and a dialog title), use `onAllNodesWithText(...)[index]` instead of `onNodeWithText`.
-- Wrap the composable in the app theme (`HeadingToTheAlpsTheme`) for accurate rendering.
+- Wrap the composable in the app theme (`HeadingToVeniceTheme`) for accurate rendering.
 - Cover at minimum: empty/default state, populated state, visibility toggles for dialogs, button click intents, and dismiss intents.
 - **Execution**: tests run on a connected device (physical or emulator) via `./gradlew connectedDebugAndroidTest`.

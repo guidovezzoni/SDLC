@@ -1,1 +1,4 @@
 .idea/*
+
+# SDLC eval results
+docs/sdlc/evals/results/*.json
