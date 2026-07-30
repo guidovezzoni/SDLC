@@ -166,6 +166,7 @@ private fun PreviewComponentName() {
 - When adding a new user facing string, always extract it in the strings.xml file for easy translation
 - Common strings, like button names, should be listed at the top of strings.xml and have this prefix: "global_"
 - When a new string is added or modified to strings.xml, you should always update the same string in other languages that might be present, translating it accordingly.
+- **Locale directories**: Before creating a new `values-xx` directory for a language, always run `ls app/src/main/res/` to check whether a region-qualified variant (e.g. `values-es-rES`) already exists. If it does, add strings there — never create a plain `values-xx` alongside it. Creating both causes Android to serve different string sets depending on device region, producing inconsistent translations.
 - **Ellipsis**: Always replace three dots with ellipsis
 
 ### Kotlin Best Practices
@@ -265,6 +266,43 @@ Unit tests should follow these criteria:
 - Assert UI elements are displayed using `onNodeWithText`, `onNodeWithContentDescription`, etc.
 - Assert user interactions fire the correct `UiIntent` by collecting intents in a `mutableListOf` passed to `onIntent`.
 - When a text string appears in multiple nodes (e.g. a button label and a dialog title), use `onAllNodesWithText(...)[index]` instead of `onNodeWithText`.
-- Wrap the composable in the app theme (`HeadingToVeniceTheme`) for accurate rendering.
+- Wrap the composable in the app theme for accurate rendering.
 - Cover at minimum: empty/default state, populated state, visibility toggles for dialogs, button click intents, and dismiss intents.
 - **Execution**: tests run on a connected device (physical or emulator) via `./gradlew connectedDebugAndroidTest`.
+
+### ADB Interaction with Compose UIs
+
+When verifying features on-device via adb and UIAutomator, Jetpack Compose requires specific handling because Compose nodes differ from traditional Android Views.
+
+#### Workflow
+
+1. **Dump the UI hierarchy** to discover element bounds:
+   ```bash
+   adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml /tmp/ui.xml
+   ```
+   Parse the XML for `text`, `content-desc`, `bounds`, `clickable`, and `focused` attributes.
+
+2. **Tap an element** by computing the centre of its `bounds="[left,top][right,bottom]"`:
+   ```bash
+   adb shell input tap $((($left+$right)/2)) $((($top+$bottom)/2))
+   ```
+
+3. **Find clickable parents**: In Compose, text nodes (`TextView`) are typically not clickable. The clickable target is an ancestor `View` node. Walk up the hierarchy to find the nearest `clickable="true"` parent and use its bounds.
+
+4. **Enter text in a Compose EditText**:
+   - Tap the `EditText` to focus it (verify `focused="true"` in a fresh dump)
+   - Use `adb shell input text "<value>"` to type
+   - Special characters: use `adb shell input keyevent <code>` instead
+
+5. **Dismiss the keyboard** before tapping other elements:
+   ```bash
+   adb shell input keyevent 4   # BACK key
+   ```
+
+6. **Re-dump after every state change**: Whenever the UI changes (keyboard appears/dismisses, dialog opens/closes, screen navigates), the element bounds shift. Always dump the hierarchy again before the next interaction. Stale bounds from a previous dump will miss.
+
+#### Common Pitfalls
+
+- **Never estimate coordinates from screenshots** — display scaling makes pixel mapping unreliable. Always use bounds from `uiautomator dump`.
+- **Keyboard shifts dialog bounds**: When the keyboard appears, dialog elements move up. Dismiss the keyboard or re-dump before tapping dialog buttons.
+- **Confirm/Cancel buttons in Compose dialogs**: The `TextView` with "Confirm"/"Cancel" text is not clickable. Find the clickable `View` parent encompassing that text area.
