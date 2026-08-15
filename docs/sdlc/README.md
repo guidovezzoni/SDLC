@@ -302,6 +302,9 @@ The other guidelines file are primarily used by the SDLC commands and describe h
 - Define how to handle changes/fix after propose change: every unexpected change on the code in an open story should update story and specs, or at least check if they are affected
 - Learn a lesson from a failure: the agent should be able to update the structure in case it spots a failure
 - create a guideline for readme
+- add PR review - other  LLM provider???
+- Lint is currently checked on verify, it should probably be executed on apply change, to group together all the changes
+- Define how to approach/solve the big PR issue
 
 ## Repeating errors to fix
 - opsx new change: Change name can only contain lowercase letters, numbers, and hyphens
@@ -319,8 +322,5 @@ The other guidelines file are primarily used by the SDLC commands and describe h
   - do not use for the expected value, the same internal function being tested -> this however conflicts with BDD's black box behaviour
   - insert a comment with the AAA?
 - There are several decisions that have been taken just "because it's a small project": that should not happen: all the projects I start are small and they will likely  become bigger, so they should use the expected architecture and structures.
+- Not sure what's best yet: When both Domain and UI require the same data type, f.i. an enum, where should this be defined? In Domain? Should it be duplicated in UI? Should it be defined in another root package?
 
-Not sure what's best yet:
-
-- When both Domain and UI require the same data type, f.i. an enum, where should this be defined? In Domain? Should it be duplicated in UI? Should it be defined in another root package?
-- add PR review - other  LLM provider???

@@ -25,7 +25,6 @@ For git operations and commit conventions: @docs/guidelines/guidelines-git.md
 
 Read the following file immediately as it's relevant to all workflows: @docs/guidelines/guidelines-process.md
 
-
 ## Project Overview
 
 (TO BE COMPLETED)
