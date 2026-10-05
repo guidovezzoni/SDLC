@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDLC Harness Matrix</title>
+<style>
+  :root {
+    --bg: #1a1d23;
+    --cell: #16181d;
+    --cell-border: #262a32;
+    --text: #d4d8df;
+    --muted: #8b929e;
+    --faint: #5c6370;
+    --guide: #38bdf8;
+    --sensor: #10b981;
+    --boundary: #ef4444;
+    --record: #a78bfa;
+    --filled: #10b981;
+    --partial: #f59e0b;
+    --empty: #6b7280;
+    --mono: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.45;
+    padding: 20px 16px 48px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+
+  .topbar {
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.08em;
+    color: var(--faint); text-transform: uppercase;
+  }
+  .topbar .dot { color: var(--sensor); }
+  h1 { font-size: 40px; font-weight: 700; color: #fff; margin-top: 10px; }
+  .lede { color: var(--muted); font-size: 18px; margin-top: 4px; max-width: 900px; }
+
+  /* Summary strip */
+  .summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 12px; margin: 24px 0 20px;
+  }
+  .stat {
+    background: var(--cell); border: 1px solid var(--cell-border); border-radius: 6px;
+    padding: 14px 16px; min-width: 0;
+  }
+  .stat .num { font-family: var(--mono); font-size: 28px; font-weight: 700; color: #fff; }
+  .stat .lbl { color: var(--muted); font-size: 14px; }
+  .stat.headline { border-color: #4b2226; }
+  .stat.headline .num { color: var(--boundary); font-size: 20px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted); font-size: 13px;
+    margin-bottom: 14px;
+  }
+
+  /* Status pill: symbol + word, never colour alone */
+  .status {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+    border: 1px solid currentColor;
+  }
+  .status.filled { color: var(--filled); }
+  .status.partial { color: var(--partial); }
+  .status.empty { color: var(--empty); }
+
+  /* Matrix */
+  .matrix {
+    display: grid;
+    grid-template-columns: 170px repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .colhead {
+    font-family: var(--mono); font-weight: 700; font-size: 30px;
+    text-align: center; padding: 4px 0 2px; min-width: 0;
+  }
+  .colhead small {
+    display: block; font-family: var(--sans); font-size: 12px; font-weight: 400;
+    color: var(--muted); margin-top: 2px;
+  }
+  .c-guide { color: var(--guide); }
+  .c-sensor { color: var(--sensor); }
+  .c-boundary { color: var(--boundary); }
+  .c-record { color: var(--record); }
+
+  .rowhead {
+    font-weight: 700; color: #aab1bd; font-size: 17px; text-align: right;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    padding-top: 12px; padding-right: 6px; min-width: 0;
+  }
+  .rowhead small { font-weight: 400; font-size: 12px; color: var(--faint); margin-top: 4px; }
+
+  .cell {
+    background: var(--cell); border: 1px solid var(--cell-border); border-radius: 4px;
+    padding: 10px 12px 12px; min-width: 0; display: flex; flex-direction: column; gap: 8px;
+    border-top-width: 3px;
+  }
+  .cell.filled { border-top-color: var(--filled); }
+  .cell.partial { border-top-color: var(--partial); }
+  .cell.empty { border-top-color: #3a3f48; background: #14161a; }
+
+  .cell-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .question { color: var(--faint); font-size: 12px; font-style: italic; min-width: 0; }
+
+  .cell ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .cell li {
+    font-size: 13.5px; padding-left: 12px; position: relative; overflow-wrap: anywhere;
+  }
+  .cell li::before { content: "▸"; position: absolute; left: 0; color: var(--faint); font-size: 11px; top: 2px; }
+  .cell li.prose::before { content: "✎"; }
+  .cell li.mech::before { content: "⚙"; }
+  .cell li.indirect::before { content: "↪"; }
+  code {
+    font-family: var(--mono); font-size: 12px; background: #20242b; color: #c9d1d9;
+    padding: 0 4px; border-radius: 3px; overflow-wrap: anywhere;
+  }
+  .gap {
+    margin-top: auto; font-size: 12.5px; color: #c8a870;
+    border-left: 2px solid #5a4a2a; padding: 4px 0 4px 8px;
+  }
+  .gap b { color: var(--partial); font-family: var(--mono); font-size: 11px; text-transform: uppercase; }
+  .none { color: var(--faint); font-size: 13.5px; }
+
+  .tally { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding-top: 2px; }
+  .tally.row { text-align: right; padding: 0 6px 0 0; }
+
+  /* Findings */
+  h2 {
+    font-family: var(--mono); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin: 40px 0 12px;
+  }
+  .findings {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px;
+  }
+  .finding {
+    background: var(--cell); border: 1px solid var(--cell-border); border-left: 3px solid var(--boundary);
+    border-radius: 4px; padding: 12px 14px; min-width: 0;
+  }
+  .finding h3 { font-size: 15px; color: #fff; margin-bottom: 6px; }
+  .finding p { font-size: 13.5px; color: var(--text); overflow-wrap: anywhere; }
+  .finding .where { font-size: 12px; color: var(--faint); margin-top: 6px; }
+
+  .excluded { color: var(--muted); font-size: 13.5px; max-width: 1000px; }
+
+  @media (max-width: 1000px) {
+    .matrix { grid-template-columns: minmax(0, 1fr); }
+    .colhead, .corner, .tally { display: none; }
+    .rowhead {
+      text-align: left; padding: 18px 0 2px; font-size: 20px; color: #fff;
+      border-bottom: 1px solid var(--cell-border);
+    }
+    .cell::before {
+      font-family: var(--mono); font-weight: 700; font-size: 16px;
+    }
+    .cell[data-role="guide"]::before { content: "Guide"; color: var(--guide); }
+    .cell[data-role="sensor"]::before { content: "Sensor"; color: var(--sensor); }
+    .cell[data-role="boundary"]::before { content: "Boundary"; color: var(--boundary); }
+    .cell[data-role="record"]::before { content: "Record"; color: var(--record); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span><span class="dot">●</span> Module 2 · The matrix · applied</span>
+    <span>SDLC framework · Claude Code</span>
+  </div>
+  <h1>The matrix, filled in for SDLC</h1>
+  <p class="lede">Every deliberate artifact in the repo, placed in one of the twenty cells. Built-in defaults (Claude Code's tools, <code>/security-review</code>, OpenSpec-generated files, session transcripts) are left out, so what's left shows the harness that was actually designed.</p>
+
+  <div class="summary">
+    <div class="stat"><div class="num">6 / 20</div><div class="lbl">cells filled with deliberate artifacts</div></div>
+    <div class="stat"><div class="num">6 / 20</div><div class="lbl">partial: prose instead of mechanism, or indirect</div></div>
+    <div class="stat"><div class="num">8 / 20</div><div class="lbl">empty</div></div>
+    <div class="stat headline"><div class="num">Boundary: 0 filled</div><div class="lbl">Every limit on the agent is a sentence it's asked to obey. The Hooks row and the Tools row have nothing filled either.</div></div>
+  </div>
+
+  <div class="legend">
+    <span><span class="status filled">● filled</span> deliberate artifact does the job</span>
+    <span><span class="status partial">◐ partial</span> exists only as prose, or indirectly</span>
+    <span><span class="status empty">○ empty</span> nothing deliberate</span>
+    <span>✎ prose instruction &nbsp; ⚙ mechanism &nbsp; ↪ indirect / third-party</span>
+  </div>
+
+  <div class="matrix">
+    <!-- header -->
+    <div class="corner"></div>
+    <div class="colhead c-guide">Guide<small>2 filled · 2 partial</small></div>
+    <div class="colhead c-sensor">Sensor<small>3 filled · 1 partial</small></div>
+    <div class="colhead c-boundary">Boundary<small>0 filled · 2 partial</small></div>
+    <div class="colhead c-record">Record<small>1 filled · 1 partial</small></div>
+
+    <!-- ROW 1: System prompt and context -->
+    <div class="rowhead">System prompt and context<small>2 filled · 0 partial</small></div>
+
+    <div class="cell filled" data-role="guide">
+      <div class="cell-top"><span class="question">CLAUDE.md, conventions, definition of done</span><span class="status filled">● filled</span></div>
+      <ul>
+        <li class="prose"><code>AGENTS.md</code> (with <code>CLAUDE.md</code> symlinked to it): a lazy-loading table of guidelines. Its Project Overview still says "TO BE COMPLETED"</li>
+        <li class="prose"><code>guidelines-process.md</code>, which AGENTS.md says to load immediately</li>
+        <li class="prose"><code>guidelines-android.md</code> (557 lines) and <code>guidelines-git.md</code>, loaded when relevant</li>
+        <li class="prose"><code>guidelines-userstories.md</code> and <code>guidelines-reports.md</code>: input/output rules read only by the commands</li>
+        <li class="prose">8 slash commands in <code>docs/sdlc/commands/</code> (about 2,300 lines)</li>
+      </ul>
+    </div>
+
+    <div class="cell filled" data-role="sensor">
+      <div class="cell-top"><span class="question">Self-verification: "run the tests before reporting done"</span><span class="status filled">● filled</span></div>
+      <ul>
+        <li class="prose">Process rule: run <code>./gradlew check</code> after every change</li>
+        <li class="prose">BDD discipline: once tests are GREEN, re-read the spec for things mocks can't show</li>
+        <li class="prose">Verification discipline: nothing is PASSED until the on-device checks are confirmed too</li>
+        <li class="prose">RED/GREEN confirmation for each test/implementation task pair</li>
+      </ul>
+    </div>
+
+    <div class="cell empty" data-role="boundary">
+      <div class="cell-top"><span class="question">Context exclusions: paths and secrets that must never enter</span><span class="status empty">○ empty</span></div>
+      <p class="none">No exclusions. The closest thing is the "don't preload every reference" lazy-loading rule, but that's about saving context, not keeping things out.</p>
+      <p class="gap"><b>Gap</b> Keep <code>play-store-key.json</code>, <code>local.properties</code> and keystores out of the agent's reads with deny rules.</p>
+    </div>
+
+    <div class="cell empty" data-role="record">
+      <div class="cell-top"><span class="question">Session transcripts: what was loaded and when</span><span class="status empty">○ empty</span></div>
+      <p class="none">Only Claude Code's built-in transcripts. Nothing records which guidelines were actually lazy-loaded during a run.</p>
+    </div>
+
+    <!-- ROW 2: Tools and descriptions -->
+    <div class="rowhead">Tools and descriptions<small>0 filled · 1 partial</small></div>
+
+    <div class="cell partial" data-role="guide">
+      <div class="cell-top"><span class="question">Tool and skill descriptions that steer correct first use</span><span class="status partial">◐ partial</span></div>
+      <ul>
+        <li class="prose">Instructions on how to use tools, written into the guidelines: the adb + UIAutomator procedure, <code>detektDebug</code> rather than <code>detekt</code>, <code>git mv</code>, <code>openspec instructions apply --json</code></li>
+        <li class="prose">Always run <code>/security-review</code> inside a sub-agent, because running it directly ends the turn</li>
+        <li class="indirect">A chosen set of OpenSpec commands: the "workflows only" profile with 6 <code>/opsx:*</code> commands</li>
+      </ul>
+      <p class="gap"><b>Gap</b> The command files have no frontmatter (<code>description</code>, <code>argument-hint</code>, <code>allowed-tools</code>), and the repo defines no skills of its own.</p>
+    </div>
+
+    <div class="cell empty" data-role="sensor">
+      <div class="cell-top"><span class="question">Tool error messages designed to teach the retry</span><span class="status empty">○ empty</span></div>
+      <p class="none">No designed errors. The README's "Repeating errors to fix" list (bad OpenSpec change names, missing <code>--change</code>, writing through the CLAUDE.md symlink) collects exactly the messages that need one.</p>
+    </div>
+
+    <div class="cell empty" data-role="boundary">
+      <div class="cell-top"><span class="question">Permission rules, allow/deny per tool, read-only access</span><span class="status empty">○ empty</span></div>
+      <ul>
+        <li class="prose">Only prose stands in for permissions: "never ever commit directly" (CRITICAL), and a "read-only" instruction in the doctor prompts</li>
+        <li class="mech">The eval harness runs with <code>--dangerously-skip-permissions</code></li>
+      </ul>
+      <p class="gap"><b>Gap</b> Ship a <code>.claude/settings.json</code> that asks before <code>Bash(git commit:*)</code> and <code>git push</code>, and denies secret paths.</p>
+    </div>
+
+    <div class="cell empty" data-role="record">
+      <div class="cell-top"><span class="question">Tool-call log with arguments and results</span><span class="status empty">○ empty</span></div>
+      <p class="none">No log. Evals only keep the final text (<code>--output-format text</code>), not a stream of tool calls.</p>
+    </div>
+
+    <!-- ROW 3: Infrastructure -->
+    <div class="rowhead">Infrastructure<small>1 filled · 3 partial</small></div>
+
+    <div class="cell partial" data-role="guide">
+      <div class="cell-top"><span class="question">Devcontainer where the right action is the easy action</span><span class="status partial">◐ partial</span></div>
+      <ul>
+        <li class="mech"><code>sdlc_init_claude_code.sh</code> / <code>.ps1</code>: creates the command symlinks and the CLAUDE.md → AGENTS.md link</li>
+        <li class="prose">Setup prescribed in prose: a <code>build-logic</code> folder of convention plugins, a version catalog, a Fastlane Gemfile/Fastfile</li>
+      </ul>
+      <p class="gap"><b>Gap</b> No devcontainer, and no template files. Every project copies the setup by hand from the prose.</p>
+    </div>
+
+    <div class="cell filled" data-role="sensor">
+      <div class="cell-top"><span class="question">Tests, linters, type checker runnable in place</span><span class="status filled">● filled</span></div>
+      <ul>
+        <li class="mech">Detekt (warnings count as errors) plus the Compose rules</li>
+        <li class="mech">Kover with a <code>minBound(95)</code> coverage floor</li>
+        <li class="mech">JUnit4 and MockK unit tests; Compose UI tests via <code>connectedDebugAndroidTest</code></li>
+        <li class="mech"><code>check_guardrails.sh</code>: 164 grep assertions that check the prompt files themselves</li>
+        <li class="indirect"><code>sdlc_project_doctor</code> checks that the project has all of the above</li>
+      </ul>
+    </div>
+
+    <div class="cell partial" data-role="boundary">
+      <div class="cell-top"><span class="question">Sandbox, egress firewall, no production credentials</span><span class="status partial">◐ partial</span></div>
+      <ul>
+        <li class="prose">The Play Store key is read from the <code>PLAY_STORE_JSON_KEY_FILE</code> environment variable and is never committed</li>
+        <li class="mech">Evals run inside temporary fixture folders</li>
+      </ul>
+      <p class="gap"><b>Gap</b> No sandbox and no limits on network access. The <code>deploy</code> lane can push to <em>production</em> using whatever credentials are on the machine.</p>
+    </div>
+
+    <div class="cell partial" data-role="record">
+      <div class="cell-top"><span class="question">Workspace snapshots and build artifacts</span><span class="status partial">◐ partial</span></div>
+      <ul>
+        <li class="mech">Eval results saved as <code>results/*.json</code> (gitignored), plus <code>compare_results.sh</code> to diff two runs</li>
+        <li class="prose">One branch per story, a suggested commit message at the end of each phase, and 4 phase commits in <code>four_in_one</code></li>
+        <li class="mech">Kover XML report, shown as the coverage table in <code>verify_story</code></li>
+      </ul>
+    </div>
+
+    <!-- ROW 4: Orchestration -->
+    <div class="rowhead">Orchestration<small>3 filled · 1 partial</small></div>
+
+    <div class="cell filled" data-role="guide">
+      <div class="cell-top"><span class="question">Subagent role definitions</span><span class="status filled">● filled</span></div>
+      <ul>
+        <li class="prose">About 30 inline <code>Agent(...)</code> templates, each with a role, a pinned model, an output format and a retry rule</li>
+        <li class="prose">Refiner persona: an "expert PM / BA with GDPR and security expertise" on Opus</li>
+        <li class="prose">Table that picks the model for each task section (Sonnet or Haiku) in <code>implement_change</code> step 1c</li>
+        <li class="prose">Phase-to-model table in <code>four_in_one</code></li>
+      </ul>
+      <p class="gap"><b>Gap</b> Every role is inline prose. There's no <code>.claude/agents/*.md</code>, so none can be reused or tested separately.</p>
+    </div>
+
+    <div class="cell filled" data-role="sensor">
+      <div class="cell-top"><span class="question">Reviewer or critic subagent on fresh context</span><span class="status filled">● filled</span></div>
+      <ul>
+        <li class="prose"><code>verify_story</code>: 14 blocking gates, each checked by a fresh sub-agent that returns PASS or FAIL</li>
+        <li class="prose">Test file and Compose preview coverage checked by Sonnet reviewers</li>
+        <li class="prose">Security review sub-agent, run repeatedly until it passes</li>
+        <li class="prose">After each sub-agent returns, the orchestrator counts <code>[x]</code> checkboxes to confirm the work</li>
+        <li class="prose">Doctors: parallel read-only Haiku checkers</li>
+      </ul>
+    </div>
+
+    <div class="cell partial" data-role="boundary">
+      <div class="cell-top"><span class="question">Per-subagent tool scoping and routing rules</span><span class="status partial">◐ partial</span></div>
+      <ul>
+        <li class="prose">Routing is defined: model tiers, and a retry path Haiku → Sonnet → the orchestrator itself</li>
+        <li class="prose">Tool limits exist only as prompt text, e.g. "Do NOT write any code", "read-only"</li>
+      </ul>
+      <p class="gap"><b>Gap</b> No <code>tools:</code> allowlists. The exploration and doctor sub-agents can still write and run anything.</p>
+    </div>
+
+    <div class="cell filled" data-role="record">
+      <div class="cell-top"><span class="question">Per-subagent journals and handoff records</span><span class="status filled">● filled</span></div>
+      <ul>
+        <li class="prose">One HTML report per story, append-only, with one section per command (<code>data-source</code>, <code>data-timestamp</code>)</li>
+        <li class="prose">Every sub-agent ends with a "When Done: Report" handoff message</li>
+        <li class="prose"><code>tasks.md</code> checkboxes carry progress between sub-agents, so a run can resume</li>
+        <li class="prose">OpenSpec proposal, design and delta specs; the refined story keeps the original text below</li>
+        <li class="prose"><code>vibe/{id}-tasks.md</code> for the fast track</li>
+      </ul>
+    </div>
+
+    <!-- ROW 5: Hooks and middleware -->
+    <div class="rowhead">Hooks and middleware<small>0 filled · 1 partial</small></div>
+
+    <div class="cell empty" data-role="guide">
+      <div class="cell-top"><span class="question">Session-start hook injecting current state</span><span class="status empty">○ empty</span></div>
+      <p class="none">None. Every command begins by gathering state itself (<code>git status</code>, <code>openspec status --json</code>, <code>adb devices</code>).</p>
+      <p class="gap"><b>Gap</b> A SessionStart hook could supply the branch, the WIP story and the active OpenSpec change.</p>
+    </div>
+
+    <div class="cell partial" data-role="sensor">
+      <div class="cell-top"><span class="question">Post-edit hook running lint, tests or a scan</span><span class="status partial">◐ partial</span></div>
+      <ul>
+        <li class="indirect">The <code>security-guidance</code> plugin must be enabled, and <code>sdlc_doctor</code> checks this. I believe the plugin works through hooks, but I haven't checked its contents.</li>
+      </ul>
+      <p class="gap"><b>Gap</b> Nothing runs <code>detektDebug</code> or the relevant tests after an edit. Lint is only checked at the verify stage, which the README already lists as a TODO.</p>
+    </div>
+
+    <div class="cell empty" data-role="boundary">
+      <div class="cell-top"><span class="question">Pre-action hook denying dangerous commands</span><span class="status empty">○ empty</span></div>
+      <p class="none">None. The rules "use <code>git mv</code>", "don't delete data" and "never commit" are only instructions.</p>
+    </div>
+
+    <div class="cell empty" data-role="record">
+      <div class="cell-top"><span class="question">Telemetry hook, OpenTelemetry export</span><span class="status empty">○ empty</span></div>
+      <p class="none">None. The cost of each run is only estimated in the README ("~40–50% token cost"), never measured.</p>
+    </div>
+
+    <!-- column tallies -->
+    <div class="corner"></div>
+    <div class="tally">●● ◐◐ ○</div>
+    <div class="tally">●●● ◐ ○</div>
+    <div class="tally">◐◐ ○○○</div>
+    <div class="tally">● ◐ ○○○</div>
+  </div>
+
+  <h2>Contradictions found while filling the cells</h2>
+  <div class="findings">
+    <div class="finding">
+      <h3>The Sensor checks the wrong Detekt version</h3>
+      <p><code>sdlc_project_doctor</code> expects Detekt 1.x settings (<code>build: maxIssues: 0</code> and plugin id <code>io.gitlab.arturbosch.detekt</code>). <code>guidelines-android.md</code> prescribes Detekt 2.x's <code>warningsAsErrors: true</code>, which it says replaces <code>maxIssues</code>. A project that follows the guideline would fail the doctor.</p>
+      <p class="where">sdlc_project_doctor.md:44–48 vs guidelines-android.md (Detekt)</p>
+    </div>
+    <div class="finding">
+      <h3>The Hooks check tests the wrong security tool</h3>
+      <p>The doctor requires the <code>security-guidance</code> plugin, but every command runs the built-in <code>/security-review</code>. So the check confirms something the workflow never calls.</p>
+      <p class="where">sdlc_doctor.md:57 vs implement_change / verify_story / vibe_a_story</p>
+    </div>
+    <div class="finding">
+      <h3>A Boundary written in prose is overridden by prose</h3>
+      <p><code>guidelines-git.md</code> says "CRITICAL: never ever commit directly", but <code>sdlc_exp_four_in_one</code> and <code>sdlc_exp_vibe_a_story</code> run <code>git commit</code> themselves. With no permission rule, the most recent instruction the agent read decides.</p>
+      <p class="where">guidelines-git.md:4 vs sdlc_exp_four_in_one.md:82, sdlc_exp_vibe_a_story.md:223</p>
+    </div>
+    <div class="finding">
+      <h3>The Sensor for the prompts is never wired in</h3>
+      <p><code>check_guardrails.sh</code> is free and runs in under a second, but nothing runs it automatically: this repo has no CI and no pre-commit hook. The one check aimed at the harness itself relies on someone remembering to run it.</p>
+      <p class="where">docs/sdlc/evals/README.md "Recommended Workflow"</p>
+    </div>
+  </div>
+
+  <h2>Left out on purpose (defaults, not artifacts)</h2>
+  <p class="excluded">Claude Code's built-in tools and <code>/security-review</code> · the OpenSpec-generated <code>/opsx</code> and skill files (only the <em>choice</em> of profile counts) · the empty <code>.claude/skills/openspec-*</code> folders · the built-in session transcripts · the user's global <code>~/.claude</code> setup (context7 rule, superpowers, supabase) · <code>.idea/</code> · <code>docs/sdlc/README.md</code>, which is a copy of the root README.</p>
+
+</div>
+</body>
+</html>
