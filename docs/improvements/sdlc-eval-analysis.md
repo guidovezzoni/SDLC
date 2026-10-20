@@ -395,9 +395,45 @@ task/operation to the types of eval that can test it and whether that eval curre
 | `sdlc_verify_story` | 27 / 27 | 40 | 3 | 8% | 4 | 8 |
 | `sdlc_doctor` | 10 / 10 | 12 | 5 | 42% | 0 | 1 |
 | `sdlc_project_doctor` | 12 / 12 | 18 | 3 | 17% | 0 | 3 |
-| `sdlc_exp_four_in_one` | 19 / 19 | 18 | 1 | 6% | 2 | 5 |
-| `sdlc_exp_vibe_a_story` | 30 / 30 | 28 | 1 | 4% | 3 | 9 |
-| **Total** | **151 / 151** | **184** | **16** | **9%** | **16** | **46** |
+| **Active total** | **102 / 102** | **138** | **14** | **10%** | **11** | **32** |
+| `sdlc_exp_four_in_one` *(exp)* | 19 / 19 | 18 | 1 | 6% | 2 | 5 |
+| `sdlc_exp_vibe_a_story` *(exp)* | 30 / 30 | 28 | 1 | 4% | 3 | 9 |
+| **Grand total** | **151 / 151** | **184** | **16** | **9%** | **16** | **46** |
+
+> Experimental commands (`sdlc_exp_*`) are excluded from the active total. Their eval coverage
+> will not be expanded until they graduate from experimental status.
+
+### Uncovered CRITICAL evals (active commands)
+
+The 11 uncovered CRITICAL evals across the 4 main commands and 2 doctor commands, ranked by
+command execution order:
+
+| # | Command | Operation | Eval Type | What it would verify |
+|---|---------|-----------|-----------|---------------------|
+| 1 | `sdlc_open_story` | Refine user story (Opus) | EX-OUTPUTQ | Refined content at top, original under `## Original user story` |
+| 2 | `sdlc_open_story` | Refine user story (Opus) | EX-OUTPUTQ | Refinement includes all 12 required sections (analytics, security, GDPR, etc.) |
+| 3 | `sdlc_propose_change` | Propose change (Sonnet) | EX-SIDEFX | Change directory created under `openspec/changes/` with all artifacts |
+| 4 | `sdlc_propose_change` | Propose change (Sonnet) | EX-OUTPUTQ | Tasks follow BDD structure — test task + implementation task pairs |
+| 5 | `sdlc_implement_change` | Execute sections (sub-agents) | EX-HAPPYP | Sub-agent completes all tasks in section, checkboxes updated |
+| 6 | `sdlc_implement_change` | Execute sections (sub-agents) | EX-SIDEFX | BDD cycle: test written, RED confirmed, implementation written, GREEN confirmed |
+| 7 | `sdlc_implement_change` | Execute sections (sub-agents) | EX-BLOCKINGGT | Test unexpectedly passes at RED — stops and reports |
+| 8 | `sdlc_verify_story` | Security review gate | EX-BLOCKINGGT | Critical/high findings — stops |
+| 9 | `sdlc_verify_story` | Clean build gate | EX-BLOCKINGGT | Build fails — stops with errors |
+| 10 | `sdlc_verify_story` | Unit tests gate | EX-BLOCKINGGT | Tests fail — stops with failure list |
+| 11 | `sdlc_verify_story` | Definition of Done gate | EX-BLOCKINGGT | Criterion not met — FAIL, stops |
+
+**Patterns in the gaps:**
+
+- **Output quality** (#1, #2, #4): the refinement and BDD structuring steps produce the artifacts
+  that all downstream commands consume. If the output is malformed, every subsequent phase works
+  from bad inputs.
+- **Side-effect correctness** (#3, #6): file creation and the BDD red/green cycle are the core
+  mechanical outputs of propose and implement. No eval currently verifies that the right files
+  appear in the right places, or that the test-first discipline is actually enforced.
+- **Blocking gates** (#7, #8, #9, #10, #11): five of the eleven gaps are gates that should halt
+  progress. Only the OpenSpec verify gate has a blocking-gate eval (`verify_story_blocks_on_gate_failure`);
+  the remaining gates are untested. A gate that fails to stop is worse than no gate at all — it
+  creates false confidence.
 
 ### Cross-command consistency checks
 
@@ -412,35 +448,38 @@ overlap with per-command assertions and are not counted separately above.
 1. **Static guardrails are at 100%.** All 151 per-command guardrails pass, plus 23 cross-command
    consistency checks. This remains the cheapest and most reliable layer.
 
-2. **Execution evals are at 9% overall** (16 out of 184 potential), up from 6% in the previous
-   analysis. The improvement comes from the doctor command evals (Phase 2), which have the best
-   coverage of any command group at 42% for `sdlc_doctor`.
+2. **Execution eval coverage for active commands is 10%** (14 out of 138 potential). The doctor
+   commands pull the average up — the 4 main commands sit at 6/108 (6%).
 
 3. **Doctor commands have the strongest execution coverage.** `sdlc_doctor` at 42% is the
    best-covered command — its 5 scenarios test happy path, individual check failures, and total
    failure. `sdlc_project_doctor` at 17% covers happy path plus two specific failure modes. Both
    are lightweight (Haiku-only sub-agents) and highly deterministic, making them ideal eval targets.
+   Neither has uncovered CRITICAL evals.
 
-4. **`sdlc_implement_change` still has zero execution evals.** This is the most complex command
-   (sub-agent orchestration per section, BDD red/green cycles, TODO resolution loops, device gates).
-   The README notes this as deferred because it requires a full openspec change with task artifacts.
+4. **`sdlc_implement_change` has zero execution evals and 3 uncovered CRITICALs.** This is the most
+   complex command (sub-agent orchestration per section, BDD red/green cycles, TODO resolution
+   loops, device gates). Its CRITICALs (#5, #6, #7) are the core BDD discipline — if these fail
+   silently, the entire test-first methodology is theatre. The README notes evals as deferred
+   because they require a full openspec change with task artifacts.
 
-5. **Experimental commands have minimal coverage** (1 scenario each, both testing git dirty-state
-   detection). `sdlc_exp_vibe_a_story` is particularly exposed — 28 potential execution evals with
-   only 1 implemented, and it has its own implementation logic rather than delegating to existing
-   commands like `sdlc_exp_four_in_one` does.
+5. **`sdlc_verify_story` has 4 uncovered CRITICAL blocking gates.** Only the OpenSpec verify gate
+   is tested. The security, build, unit test, and Definition of Done gates are untested — a
+   broken gate that passes when it should block is the highest-consequence failure mode in
+   the verification pipeline.
 
-6. **Highest-value gaps** (highest risk with no execution eval):
-    - Happy-path completion for any of the 4 main commands (none exists)
-    - BDD red/green discipline enforcement (`sdlc_implement_change`)
-    - Blocking-gate cascade (`sdlc_verify_story` — only first gate failure is tested)
-    - Sub-agent retry/escalation paths (none tested for any command)
-    - Side-effect correctness: `git mv` renames, index updates, report file creation
-    - `sdlc_exp_vibe_a_story` task-list generation and section execution
-    - `sdlc_exp_four_in_one` phase chaining and inter-phase commit policy
-    - `sdlc_project_doctor` detekt version detection (version 1.x → 2.x upgrade message)
+6. **Highest-value next evals** (ordered by risk reduction per eval):
+    1. **Blocking-gate cascade** (`sdlc_verify_story`): one scenario with a build or test failure
+       would cover #9 or #10 and confirm the gate-stops-everything protocol beyond the first gate.
+    2. **BDD red/green enforcement** (`sdlc_implement_change`): a scenario where a test passes at
+       RED would cover #7 — the most dangerous silent failure in the framework.
+    3. **Refinement output structure** (`sdlc_open_story`): a happy-path scenario asserting the
+       12 required sections would cover #1 and #2 in one eval.
+    4. **Change artifact creation** (`sdlc_propose_change`): a happy-path scenario asserting directory
+       structure and BDD task format would cover #3 and #4.
+    5. **`sdlc_project_doctor` detekt version detection**: not CRITICAL but HIGH — the silent-failure
+       mode when detekt 1.x meets AGP 8+ makes this a high-value low-cost addition.
 
 7. **Coverage distribution is bottom-heavy.** The cheapest commands (doctors) have the best coverage;
-   the most complex and risky commands (implement_change, verify_story, exp_vibe_a_story) have the
-   least. This is rational given rate-limit constraints but leaves the highest-consequence behaviours
-   untested.
+   the most complex and risky commands (implement_change, verify_story) have the least. This is
+   rational given rate-limit constraints but leaves the highest-consequence behaviours untested.
