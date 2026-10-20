@@ -56,19 +56,42 @@ app/src/main/java/<package-name>/
 │       ├── Color.kt
 │       └── Type.kt       
 ├── domain/                     # Business logic
+│   ├── model/                  # Domain models and value objects
 │   ├── usecase/
 │   │   ├── Usecase001UseCase.kt
 │   │   ├── Usecase002UseCase.kt
 │   │   └── Usecase003UseCase.kt
 │   └── repository/             # Repository interfaces
-└── data/                       # Data layer
-    ├── repository/             # Repository implementations
-    │   ├── Repository001Impl.kt
-    │   └── Repository002Impl.kt
-    ├── mapper/                 # DTO → domain mappers
-    │   └── EntityMapper.kt
-    └── database/
+├── data/                       # Data layer
+│   ├── repository/             # Repository implementations
+│   │   ├── Repository001Impl.kt
+│   │   └── Repository002Impl.kt
+│   ├── mapper/                 # DTO → domain mappers
+│   │   └── EntityMapper.kt
+│   └── database/
+└── core/                       # Cross-cutting concerns (see charter below)
+    ├── analytics/
+    └── network/
 ```
+
+- **The `core/` package**: holds concerns that are **cross-cutting, carry no business rules, and are
+  consumed by more than one layer** — analytics, logging, generic coroutine helpers, network
+  primitives. It sits parallel to `data/`, `domain/`, and `ui/`, not beneath them.
+
+  `core/` is the package most prone to becoming a junk drawer, so admission is gated by a single test:
+  **you must be able to name at least two unrelated consumers.** If you cannot, it belongs elsewhere.
+
+  | Question | Belongs in |
+  |----------|-----------|
+  | Does it express a business rule or concept? | `domain/` |
+  | Does it fetch, persist, or map external data? | `data/` |
+  | Does it render or hold screen state? | `ui/` |
+  | None of the above, and used by two or more layers? | `core/` |
+
+  A concern in `core/` keeps its contracts and its implementations together — splitting one cohesive
+  concern across `core/` and `data/` defeats the purpose. Where an implementation pulls in a heavy
+  third-party SDK, note it as the natural candidate for extraction into its own module if the project
+  is ever modularised, so `core/` stays dependency-light.
 
 - **Preserve meaningful domain concepts as value objects**: When an API response contains a nested object that represents a coherent domain concept (e.g. a rating with a score and count, an address with street and city), model it as a separate value object in the domain layer rather than flattening its fields into the parent entity. Flattening dissolves concept boundaries, making the model harder to reason about and extend. The DTO layer mirrors the API shape; the domain layer mirrors the business meaning.
 
@@ -156,7 +179,7 @@ fun ComponentName(
 @Preview(showBackground = true)
 @Composable
 private fun PreviewComponentName() {
-    WhatsappFilesFixerTheme {
+    MyAppTheme {
         ComponentName()
     }
 }
@@ -200,8 +223,8 @@ private fun PreviewComponentName() {
 - Use alphabetical ordering within each group
 
 ### Naming Conventions
-- **Composables**: PascalCase (e.g., `WhatsappScreen`, `MainScreen`)
-- **Functions**: camelCase (e.g., `findWhatsappFolder`, `checkPermission`)
+- **Composables**: PascalCase (e.g., `ProductListScreen`, `MainScreen`)
+- **Functions**: camelCase (e.g., `findDownloadFolder`, `checkPermission`)
 - **Variables**: camelCase, prefer descriptive names
 - **Constants**: UPPER_SNAKE_CASE for top-level constants
 - **No abbreviations or acronyms**: Use full, descriptive names for all variables, parameters, functions, and classes. Avoid shortened forms that require the reader to guess the meaning (e.g. use `destination` not `dest`, `startingPoint` not `sp`, `displayState` not `ds`).
@@ -269,7 +292,7 @@ Unit tests should follow these criteria:
 - cover all reasonable cases, but keeps the coverage over 95%
 - Target 95%+ coverage
 - **MVI ViewModel tests**: Test by dispatching `UiIntent` values via `onIntent()` and asserting the resulting `uiState` and any emitted `uiEffect`. Never test internal ViewModel methods directly.
-- **Consolidate test setup**: When a ViewModel (or any SUT) is instantiated in multiple tests, use a single `createViewModel(...)` factory method with default parameters for varied inputs (e.g. `stops: List<Stop> = emptyList()`, `legs: List<Leg> = emptyList()`). Tests should never inline the full constructor call — extend the factory helper instead.
+- **Consolidate test setup**: When a ViewModel (or any SUT) is instantiated in multiple tests, use a single `createViewModel(...)` factory method with default parameters for varied inputs (e.g. `items: List<Item> = emptyList()`, `isLoading: Boolean = false`). Tests should never inline the full constructor call — extend the factory helper instead.
 
 
 ### Compose UI Tests
@@ -326,19 +349,29 @@ When verifying features on-device via adb and UIAutomator, Jetpack Compose requi
 
 Static analysis via [Detekt](https://detekt.dev/) with the [Compose rules plugin](https://github.com/mrmans0n/compose-rules).
 
+**Use detekt 2.x or later, with a matching `detekt-compose-rules` build.** Earlier majors cannot run
+type resolution on a current AGP, which silently disables a whole class of rules, and the Compose rules
+line is published against 2.x only. `/sdlc_project_doctor` fails when a project is behind.
+
 ### Running detekt
 
-Always use the variant-specific tasks instead of the plain `detekt` task:
+Use the variant-specific tasks, never the plain `detekt` task:
 
 ```bash
 ./gradlew detektDebug    # or detektRelease
 ```
 
-The variant tasks (`detektDebug`, `detektRelease`) run with **type resolution** — they compile the code first and analyse it with the full classpath, enabling deeper rules such as `UnusedImport` and `UnusedPrivateFunction`. The plain `detekt` task runs without type resolution and misses these issues.
+The variant tasks run with **type resolution** — they compile the code first and analyse it with the
+full classpath, which is what enables rules like `UnusedImport` and `UnusedPrivateFunction`. The plain
+`detekt` task runs without it and misses those issues entirely.
+
+If those tasks do not exist, type resolution is not running and neither are the rules that need it.
+Check with `./gradlew :app:tasks --all | grep detekt`.
 
 ### Gradle setup
 
-Apply the plugin in the root `build.gradle.kts` (without `apply`), then apply it in the module and add the Compose rules plugin as a `detektPlugins` dependency:
+Apply the plugin in the root `build.gradle.kts` (without `apply`), then apply it in the module and add
+the Compose rules plugin as a `detektPlugins` dependency:
 
 ```kotlin
 // root build.gradle.kts
@@ -358,16 +391,30 @@ dependencies {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
-    baseline = file("detekt-baseline.xml")
 }
 ```
 
+`detekt-compose-rules` pins a specific detekt version, so bump the two together rather than taking the
+newest of each independently.
+
+### Zero tolerance
+
+**Every detekt finding gets fixed.** Introducing detekt, upgrading it, or enabling a new rule means
+resolving what it reports — not recording it as accepted. No baseline file is used.
+
+**Any rule violation fails the build.** Detekt fails on any issue of `error` severity; `failOnSeverity`
+in the `detekt {}` block sets the threshold and defaults to `Error`, which is what you want — set it
+explicitly only to loosen it. `warningsAsErrors: true` is what promotes warnings to that severity, so
+both are needed.
+
 ### Configuration file
 
-Place the configuration at `config/detekt/detekt.yml`. Only settings that are stricter than Detekt's defaults are listed — everything else is left to the built-in defaults (enabled via `buildUponDefaultConfig = true`):
+Place the configuration at `config/detekt/detekt.yml`. Only settings stricter than detekt's defaults are
+listed — everything else is left to the built-in defaults (enabled via `buildUponDefaultConfig = true`):
 
 ```yaml
 config:
+  validation: true
   warningsAsErrors: true
 
 naming:
@@ -376,28 +423,41 @@ naming:
       - 'Composable'
 
 style:
+  UnusedImport:
+    active: true
   UnusedPrivateFunction:
     ignoreAnnotated:
       - 'Preview'
   MagicNumber:
     ignorePropertyDeclaration: true
-  UnusedImport:
-    active: true
   WildcardImport:
     active: true
 
 Compose:
   active: true
+  ParameterNaming:
+    active: false
 ```
 
 Key decisions:
-- `warningsAsErrors: true` — zero tolerance; any violation fails the build. (Detekt 2.x replaced the 1.x `build: maxIssues: 0` key with this setting.)
-- `FunctionNaming: ignoreAnnotated: ['Composable']` — Composable functions use PascalCase by convention, which would otherwise violate the default `[a-z][a-zA-Z0-9]*` naming pattern.
-- `UnusedPrivateFunction: ignoreAnnotated: ['Preview']` — `@Preview` composables are private by convention but only invoked by the IDE tooling, not by runtime code. Without this exclusion, type-resolution tasks (`detektDebug`) flag them as unused.
-- `MagicNumber: ignorePropertyDeclaration: true` — allows numeric literals in property declarations (e.g. `val Purple80 = Color(0xFFD0BCFF)`) without flagging them as magic numbers.
-- `UnusedImport` and `WildcardImport` are inactive in Detekt's defaults; explicitly enabled here.
-- `Compose: active: true` enables all rules from the `detekt-compose-rules` plugin, which are off by default.
-- A `detekt-baseline.xml` can be generated to suppress pre-existing issues when adopting Detekt on a legacy codebase.
+- `validation: true` — detekt validates its own configuration, and a key that does not exist in the
+  running version **fails the build** rather than being ignored. Note it does not cover custom rulesets,
+  so a `Compose:` block is accepted whether or not the ruleset actually loaded.
+- `warningsAsErrors: true` — warnings are treated as errors rather than advisory.
+- `FunctionNaming: ignoreAnnotated: ['Composable']` — Composable functions use PascalCase by convention,
+  which would otherwise violate the default `[a-z][a-zA-Z0-9]*` naming pattern.
+- `UnusedPrivateFunction: ignoreAnnotated: ['Preview']` — `@Preview` composables are private by
+  convention but only invoked by IDE tooling. Without this exclusion, type-resolution tasks flag them as
+  unused.
+- `MagicNumber: ignorePropertyDeclaration: true` — allows numeric literals in property declarations
+  (e.g. `val Purple80 = Color(0xFFD0BCFF)`) without flagging them.
+- `UnusedImport` and `WildcardImport` are inactive in detekt's defaults; explicitly enabled here.
+- `Compose: active: true` enables all rules from the `detekt-compose-rules` plugin, off by default.
+- `ParameterNaming: active: false` disables the Compose rule that enforces present-tense lambda
+  parameter names (e.g. `onClick` instead of `onClicked`). The official
+  [Android API guidelines](https://source.android.com/docs/setup/contribute/api-guidelines#callback-tense)
+  prescribe past tense for callbacks that fire after the event has occurred (`onClicked`, `onChanged`,
+  `onDeparted`), which directly contradicts this rule.
 
 ## Kover
 

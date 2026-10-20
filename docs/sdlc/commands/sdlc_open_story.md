@@ -4,6 +4,15 @@ This command uses sub-agent orchestration: self-contained steps are delegated to
 
 Sub-agent orchestration is the default execution strategy for this command.
 
+## Execution Metrics
+
+At the very start of this command, before any other work:
+
+1. **Record start time.** Run `date +%s` and store the result as `{START_EPOCH}`.
+2. **Initialise interaction counter.** Set `{INTERACTION_COUNT}` to 0. Each time you pause execution to ask the user a question or wait for user input (e.g. uncommitted changes warning, branch choice, story confirmation), increment `{INTERACTION_COUNT}` by 1 before resuming.
+
+These values are used in the report step to produce the Command Metrics subsection.
+
 ## Steps
 
 Follow these steps:
@@ -89,6 +98,8 @@ Follow these steps:
    - User story: {USER_STORY_FILE_PATH}
    - Android guidelines: docs/guidelines/guidelines-android.md
    - Process guidelines: docs/guidelines/guidelines-process.md
+   - Analytics guidelines: docs/guidelines/guidelines-analytics.md
+   - Tracking plan (event dictionary): docs/analytics/tracking-plan.md
 
    ## Refinement Requirements
 
@@ -102,8 +113,14 @@ Follow these steps:
    7. Security potential issues and mitigations
    8. Performance potential issues and mitigations
    9. GDPR and sensitive information potential issues and mitigations
-   10. Other non-functional requirement concerns and mitigations
-   11. The steps required for the task to be considered complete
+   10. An `## Analytics` section defining the events this feature must emit — their names,
+       parameters, and the product question each answers — following the naming and privacy
+       rules in the analytics guidelines and the existing entries in the tracking plan.
+       Analytics is a product requirement of the feature that generates the data, not a
+       follow-up task. If the feature genuinely warrants no new event, say so explicitly and
+       give the reason. A story with no `## Analytics` section is not refined.
+   11. Other non-functional requirement concerns and mitigations
+   12. The steps required for the task to be considered complete
 
    ## Critical Constraint
    Stay at the "what" level, not the "how." Focus on requirements, acceptance criteria,
@@ -133,7 +150,7 @@ Follow these steps:
 
    **Failure handling:** If the sub-agent fails or produces incomplete output, retry once with Opus. If still failing, the orchestrator performs the refinement itself.
 
-8. **Add a report (sub-agent).** Spawn a sub-agent to create or update the report.
+8. **Add a report (sub-agent).** Run `date +%s` and store the result as `{END_EPOCH}`. Then spawn a sub-agent to create or update the report.
 
    ```
    Agent(
@@ -157,6 +174,9 @@ Follow these steps:
    - Branch: {BRANCH_NAME}
    - Date: {ISO_DATE}
    - Refinement summary: {REFINEMENT_SUMMARY_FROM_STEP_6}
+   - Command start time (epoch): {START_EPOCH}
+   - Command end time (epoch): {END_EPOCH}
+   - User interaction count: {INTERACTION_COUNT}
 
    ## Guidelines
    Read the report guidelines at: docs/guidelines/guidelines-reports.md
@@ -164,6 +184,23 @@ Follow these steps:
    ## Instructions
    The section should summarise: the user story name, the branch created, and a brief
    summary of the story refinement.
+
+   Additionally, include a **Command Metrics** subsection at the end of the section with
+   this HTML structure:
+
+   ```html
+   <h3>Command Metrics</h3>
+   <table>
+     <tr><th>Metric</th><th>Value</th></tr>
+     <tr><td>Start time</td><td>{START_EPOCH converted to human-readable local time, formatted as YYYY-MM-DD HH:MM:SS}</td></tr>
+     <tr><td>End time</td><td>{END_EPOCH converted to human-readable local time, formatted as YYYY-MM-DD HH:MM:SS}</td></tr>
+     <tr><td>Duration</td><td>{computed from END_EPOCH - START_EPOCH, formatted as Xm Ys}</td></tr>
+     <tr><td>User interactions</td><td>{INTERACTION_COUNT}</td></tr>
+   </table>
+   <p><em>Metrics are tracked by the LLM during execution. Duration includes time
+   waiting for user responses. Interaction count relies on in-context tracking and
+   may be approximate.</em></p>
+   ```
 
    ## When Done
    Report:
