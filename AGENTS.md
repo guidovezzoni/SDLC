@@ -17,6 +17,11 @@ Instructions:
 
 For Native Android code style and best practices: @docs/guidelines/guidelines-android.md
 
+### Analytics Guidelines
+
+For analytics event design, naming, and delivery: @docs/guidelines/guidelines-analytics.md
+The event dictionary is the tracking plan: @docs/analytics/tracking-plan.md
+
 ### Git Guidelines
 
 For git operations and commit conventions: @docs/guidelines/guidelines-git.md
