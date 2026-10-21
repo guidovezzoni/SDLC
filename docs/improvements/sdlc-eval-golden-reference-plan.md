@@ -115,10 +115,12 @@ in mind. For our use case, 1 run per configuration change is practical because:
 
 ## Key Decisions
 
-### Decision 1: Use the venice repo branches as the golden reference
+### Decision 1: Self-contained golden reference
 
-The reference repo at `/home/guido/dev/personal/venice` has 5 branches capturing the state after
-each command was run against story 5.1.2:
+The golden reference is stored in `docs/sdlc/evals/goldenreference/`, with one subdirectory per
+command containing input tarballs and expected output files. It was sourced from a real, successful
+pipeline run against the venice Android project (story 5.1.2), using 5 branches that capture the
+state before and after each command:
 
 ```
 workshop/00_main ──→ open_story ──→ workshop/01_sdlc_open_story
@@ -127,11 +129,16 @@ workshop/00_main ──→ open_story ──→ workshop/01_sdlc_open_story
                                                                                     ──→ verify_story ──→ workshop/04_sdlc_verify
 ```
 
-**Why:** This is a real, successful pipeline run against a real Android project. It produces more
-realistic assertions than a synthetic fixture. Each branch boundary is a "before/after" snapshot
-for one command, so commands can be tested independently.
+**Why self-contained:** The eval system must not depend on or access the source repo at runtime.
+Tarballs are created once via `git archive` (no `.git/` directory, no remotes), and scenario scripts
+initialise isolated local-only git repos from them. This prevents any eval run from affecting the
+real project, and makes the eval system portable.
 
-**Known deviation:** The branch name doesn't match the default naming convention (should be
+**Why a real project:** A real pipeline run against a real Android project produces more realistic
+assertions than a synthetic fixture. Each branch boundary is a "before/after" snapshot for one
+command, so commands can be tested independently.
+
+**Known deviation:** The source branch names don't match the default naming convention (should be
 `feature/5.1.2-...`). This is noted and not asserted on.
 
 ### Decision 2: Three evaluation tiers
@@ -307,7 +314,6 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
 |-----------|---------|---------|
 | `EVAL_TOOL` | Harness under test | `claude` |
 | `EVAL_JUDGE_MODEL` | Model for T2 judge (should differ from model being evaluated) | Configurable |
-| `REFERENCE_REPO` | Path to the golden reference repo | `/home/guido/dev/personal/venice` |
 
 ### How This Serves Each Regression Axis
 
@@ -323,8 +329,8 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
 
 ### 1. `open_story` (branch 0→1)
 
-**Setup:** Git worktree from `workshop/00_main`. Input: unrefined story at
-`docs/userstories/5.1.2-navigate-leg-segment.md`.
+**Setup:** Extract `goldenreference/open_story/repo-snapshot.tar.gz` and initialise isolated git repo.
+Input: unrefined story at `docs/userstories/5.1.2-navigate-leg-segment.md`.
 
 **T1 Structural assertions:**
 - Original story file no longer exists (renamed via git mv)
@@ -349,13 +355,13 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
 | `content_preservation` | boolean | Original story text preserved verbatim under `## Original user story` with headings downgraded one level |
 | `overall_coherence` | 1-5 | The refined story reads as a coherent, self-consistent document suitable for the propose_change phase |
 
-**Golden reference:** `docs/sdlc/evals/sourcematerial/refined_user_story.md` (already exists)
+**Golden reference:** `goldenreference/open_story/output/`
 
 ---
 
 ### 2. `propose_change` (branch 1→2)
 
-**Setup:** Git worktree from `workshop/01_sdlc_open_story`.
+**Setup:** Extract `goldenreference/propose_change/repo-snapshot.tar.gz` and initialise isolated git repo.
 
 **T1 Structural assertions:**
 - Change directory exists under `openspec/changes/`
@@ -377,13 +383,14 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
 | `question_quality` | 1-5 | If questions were surfaced, they are relevant and avoid assumptions; if no questions, the story was unambiguous enough to proceed |
 | `story_alignment` | 1-5 | The proposed change faithfully implements the refined user story without scope creep or omissions |
 
-**Golden reference:** Extract from `workshop/02_sdlc_propose_change` into `sourcematerial/propose_change/`.
+**Golden reference:** `goldenreference/propose_change/output/`
 
 ---
 
 ### 3. `implement_change` (branch 2→3)
 
-**Setup:** Git worktree from `workshop/02_sdlc_propose_change`. Requires Android SDK.
+**Setup:** Extract `goldenreference/implement_change/repo-snapshot.tar.gz` and initialise isolated git repo.
+Requires Android SDK.
 
 **T1 Structural assertions:**
 - All tasks in tasks.md are `[x]` (no unchecked `[ ]` remain)
@@ -406,13 +413,14 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
 - `./gradlew test` passes (unit tests)
 - Coverage meets 95% threshold
 
-**Golden reference:** Key source and test files from `workshop/03_sdlc_implement_changes`.
+**Golden reference:** `goldenreference/implement_change/output/`
 
 ---
 
 ### 4. `verify_story` (branch 3→4)
 
-**Setup:** Git worktree from `workshop/03_sdlc_implement_changes`. Requires Android SDK.
+**Setup:** Extract `goldenreference/verify_story/repo-snapshot.tar.gz` and initialise isolated git repo.
+Requires Android SDK.
 
 **T1 Structural assertions:**
 - Story file renamed to `-DONE.md`
@@ -434,17 +442,137 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
 
 ---
 
+## Golden Reference Storage
+
+### Design
+
+The golden reference lives in `docs/sdlc/evals/goldenreference/`, one subdirectory per command. The
+existing `docs/sdlc/evals/sourcematerial/` directory is removed and its contents migrated here.
+
+Each command subdirectory contains:
+
+- **`repo-snapshot.tar.gz`** — a `git archive` tarball of the full repo at the "before" branch (~4 MB each).
+  The command needs a real working directory with project structure, SDLC config, AGENTS.md, all source
+  files — individual files can't reproduce this.
+- **`output/`** — the individual files produced by the command, preserving their repo-relative paths.
+  The T2 judge and T1 assertions read these directly without unpacking an archive.
+- **`input.md`** — the primary input artifact extracted separately for convenience, so the judge prompt
+  can reference "what the command was given" without unpacking the tarball.
+
+**The tarballs contain no `.git/` directory, no remotes, and no connection to the source repo.**
+`git archive` produces a plain file tree. The scenario script creates a fresh, isolated git repo at
+runtime (see Fixture Initialisation below).
+
+### Source
+
+All artifacts are extracted once from the venice repo at `/home/guido/dev/personal/venice` using the
+5 workshop branches. After extraction, the eval system is fully self-contained — no scenario script
+accesses the venice repo.
+
+### Layout
+
+```
+docs/sdlc/evals/goldenreference/
+├── README.md
+│
+├── open_story/
+│   ├── repo-snapshot.tar.gz                       # git archive of workshop/00_main
+│   ├── input.md                           # unrefined story (for judge prompt)
+│   └── output/
+│       ├── docs/userstories/5.1.2-navigate-leg-segment-WIP.md
+│       ├── docs/reports/5.1.2-navigate-leg-segment.html
+│       └── docs/userstories/index.md
+│
+├── propose_change/
+│   ├── repo-snapshot.tar.gz                       # git archive of workshop/01_sdlc_open_story
+│   ├── input.md                           # refined story (for judge prompt)
+│   └── output/
+│       ├── openspec/changes/navigate-leg-segment/proposal.md
+│       ├── openspec/changes/navigate-leg-segment/design.md
+│       ├── openspec/changes/navigate-leg-segment/tasks.md
+│       ├── openspec/changes/navigate-leg-segment/specs/leg-navigation/spec.md
+│       ├── openspec/changes/navigate-leg-segment/.openspec.yaml
+│       └── docs/reports/5.1.2-navigate-leg-segment.html
+│
+├── implement_change/
+│   ├── repo-snapshot.tar.gz                       # git archive of workshop/02_sdlc_propose_change
+│   ├── input.md                           # tasks.md (for judge prompt)
+│   └── output/
+│       ├── app/src/main/java/.../intent/TripDetailUiIntent.kt
+│       ├── app/src/main/java/.../effect/TripDetailUiEffect.kt
+│       ├── app/src/main/java/.../state/TripDetailUiState.kt
+│       ├── app/src/main/java/.../viewmodel/TripDetailViewModel.kt
+│       ├── app/src/main/java/.../screens/tripdetail/LegSummary.kt
+│       ├── app/src/main/java/.../screens/tripdetail/TripDetailScreen.kt
+│       ├── app/src/main/java/.../MainScreen.kt
+│       ├── app/src/main/java/.../util/NavigationUriBuilder.kt
+│       ├── app/src/test/java/.../NavigationUriBuilderTest.kt
+│       ├── app/src/test/java/.../TripDetailViewModelTest.kt
+│       ├── app/src/androidTest/java/.../MainScreenTest.kt
+│       ├── app/src/androidTest/java/.../LegSummaryTest.kt
+│       ├── app/src/androidTest/java/.../TripDetailScreenTest.kt
+│       ├── app/src/main/res/values/strings.xml
+│       ├── app/src/main/res/values-it/strings.xml
+│       ├── app/src/main/res/values-es-rES/strings.xml
+│       ├── openspec/changes/navigate-leg-segment/tasks.md
+│       └── docs/reports/5.1.2-navigate-leg-segment.html
+│
+└── verify_story/
+    ├── repo-snapshot.tar.gz                       # git archive of workshop/03_sdlc_implement_changes
+    ├── input.md                           # story + tasks (for judge prompt)
+    └── output/
+        ├── docs/userstories/5.1.2-navigate-leg-segment-DONE.md
+        ├── docs/userstories/index.md
+        ├── docs/reports/5.1.2-navigate-leg-segment.html
+        ├── openspec/specs/leg-navigation/spec.md
+        ├── openspec/changes/archive/2026-10-05-navigate-leg-segment/.openspec.yaml
+        ├── openspec/changes/archive/2026-10-05-navigate-leg-segment/design.md
+        ├── openspec/changes/archive/2026-10-05-navigate-leg-segment/proposal.md
+        ├── openspec/changes/archive/2026-10-05-navigate-leg-segment/specs/leg-navigation/spec.md
+        └── openspec/changes/archive/2026-10-05-navigate-leg-segment/tasks.md
+```
+
+### Fixture initialisation
+
+The tarballs contain no `.git/` directory, so the scenario script must create a fresh, isolated git
+repo before running the command:
+
+```bash
+mkdir "$WORK_DIR"
+tar xzf goldenreference/open_story/repo-snapshot.tar.gz -C "$WORK_DIR"
+cd "$WORK_DIR"
+git init
+git add -A
+git commit -m "golden reference baseline"
+```
+
+This gives the command a real git repo with one commit, a `main` branch, and **zero remotes**. There
+is no way for any script to push, pull, or fetch from the source venice repo — the remote does not
+exist. The `cleanup_fixture()` helper removes the entire `$WORK_DIR` after the scenario completes.
+
+### Regeneration
+
+A one-time extraction script (`extract_golden_reference.sh`) creates the tarballs and output files
+from the venice repo. It is run manually when the golden reference needs updating (e.g., after a
+new pipeline run produces better reference artifacts). The script is idempotent and documents which
+venice branch maps to which command.
+
+### Size estimate
+
+4 tarballs at ~4 MB each = ~16 MB total. The output files add negligible size. This is large for a
+git repo but acceptable — these are test fixtures that change rarely.
+
+---
+
 ## Implementation Plan
 
 ### Phase 1: Infrastructure
 
-1. **Extract golden reference artifacts** from the venice repo branches into
-   `docs/sdlc/evals/sourcematerial/` — one subdirectory per command, containing the key artifacts
-   the LLM judge needs for comparison.
-   - `sourcematerial/` already has `unrefined_user_story.md` and `refined_user_story.md`
-   - Add `sourcematerial/propose_change/` with proposal.md, design.md, tasks.md
-   - Add `sourcematerial/implement_change/` with key source and test files
-   - Add `sourcematerial/verify_story/` with report extract showing gate results
+1. **Create `goldenreference/` directory** and extract artifacts from the venice repo:
+   - Run the extraction script to create `repo-snapshot.tar.gz` and `output/` for each command
+   - Create `input.md` files (primary input artifact for judge prompts)
+   - Remove the old `sourcematerial/` directory
+   - Write `goldenreference/README.md` documenting source, structure, and regeneration
 
 2. **Add LLM-as-judge helper** to `docs/sdlc/evals/lib/eval_helpers.sh`:
    - `run_judge()` function: takes a rubric file, golden reference file(s), candidate file(s),
@@ -457,9 +585,10 @@ Only for `implement_change` and `verify_story`. Runs the actual build toolchain:
    - Parse token usage from harness output if available
    - Include timing data in the JSON result file
 
-4. **Add repo-clone fixture helper**:
-   - `create_venice_fixture()`: creates a git worktree of the reference repo at a specified branch
-   - `cleanup_venice_fixture()`: removes the worktree
+4. **Add fixture helpers** to `docs/sdlc/evals/lib/eval_helpers.sh`:
+   - `create_fixture()`: extracts `repo-snapshot.tar.gz` to a temp directory, runs `git init` + `git add -A`
+     + `git commit` to create an isolated local-only repo with no remotes
+   - `cleanup_fixture()`: removes the temp directory
 
 ### Phase 2: Rubric files
 
@@ -483,11 +612,12 @@ Create one happy-path scenario per command:
 - `verify_story_golden_quality.sh` (requires Android SDK)
 
 Each scenario:
-1. Creates a fixture from the appropriate venice repo branch
+1. Creates a fixture by extracting `repo-snapshot.tar.gz` and initialising an isolated git repo (no remotes)
 2. Runs the command via the configured harness
 3. Runs T1 structural assertions (deterministic)
-4. Runs T2 LLM-as-judge evaluation (rubric-based)
+4. Runs T2 LLM-as-judge evaluation against `output/` reference files (rubric-based)
 5. Records timing and scores to the JSON result file
+6. Cleans up the fixture directory
 
 ### Phase 4: Comparison tooling
 
