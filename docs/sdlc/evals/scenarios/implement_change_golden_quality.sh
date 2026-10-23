@@ -18,12 +18,12 @@ RUBRIC="$EVAL_ROOT/rubrics/implement_change_rubric.md"
 
 # --- Setup ---
 FIXTURE_DIR=$(create_golden_fixture "implement_change")
-git -C "$FIXTURE_DIR" branch -M main
 git -C "$FIXTURE_DIR" checkout -b feature/5.1.2-navigate-leg-segment --quiet
+git -C "$FIXTURE_DIR" push --quiet -u origin feature/5.1.2-navigate-leg-segment
 git -C "$FIXTURE_DIR" tag eval-baseline
 
 # --- Run ---
-OUTPUT_FILE="$FIXTURE_DIR/eval_output.txt"
+OUTPUT_FILE=$(mktemp "/tmp/sdlc_eval_output_${SCENARIO_NAME}_XXXXXX")
 echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
 echo -e "  ${YELLOW}This scenario requires Android SDK and is interactive.${RESET}"
 run_eval_with_args "$FIXTURE_DIR" "$COMMANDS_DIR/sdlc_implement_change.md" "$OUTPUT_FILE" "" || true
@@ -112,8 +112,8 @@ assert_judge_score "$JUDGE_RESULT" "test_quality" 3 "test_quality >= 3/5"
 
 # --- Report & Cleanup ---
 rm -rf "$CANDIDATE_DIR"
-report_scenario_result "$SCENARIO_NAME"
-RESULT=$?
+report_scenario_result "$SCENARIO_NAME" || true
+RESULT=$ASSERTIONS_FAILED
 
 if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/null 2>&1; then
     RESULT_JSON="$RESULTS_DIR/${SCENARIO_NAME}.json"
@@ -124,5 +124,6 @@ if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/nul
     fi
 fi
 
+rm -f "$OUTPUT_FILE"
 cleanup_fixture "$FIXTURE_DIR"
 exit $RESULT

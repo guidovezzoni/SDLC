@@ -47,8 +47,17 @@ create_fixture_dir() {
 cleanup_fixture() {
     local fixture_dir="$1"
     if [[ -d "$fixture_dir" && "$fixture_dir" == /tmp/sdlc_eval_* ]]; then
-        rm -rf "$fixture_dir"
+        rm -rf "$fixture_dir" "${fixture_dir}_remote.git"
     fi
+}
+
+add_local_remote() {
+    local fixture_dir="$1"
+    local remote_dir="${fixture_dir}_remote.git"
+    git clone --bare --quiet "$fixture_dir" "$remote_dir"
+    git -C "$fixture_dir" remote add origin "$remote_dir"
+    git -C "$fixture_dir" fetch --quiet origin
+    git -C "$fixture_dir" branch --set-upstream-to=origin/main main >/dev/null 2>&1 || true
 }
 
 snapshot_fixture() {
@@ -74,6 +83,9 @@ create_golden_fixture() {
     git -C "$fixture_dir" add -A
     git -C "$fixture_dir" -c user.name="eval" -c user.email="eval@test" \
         commit -m "golden reference baseline" --quiet
+    git -C "$fixture_dir" branch -M main
+
+    add_local_remote "$fixture_dir"
 
     echo "$fixture_dir"
 }

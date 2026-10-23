@@ -39,10 +39,12 @@ tar xzf "$EVAL_ROOT/goldenreference/verify_story/repo-snapshot.tar.gz" -C "$FIXT
 git -C "$FIXTURE_DIR" add -A
 git -C "$FIXTURE_DIR" -c user.name="eval" -c user.email="eval@test" \
     commit -m "implement story 5.1.2" --quiet
+add_local_remote "$FIXTURE_DIR"
+git -C "$FIXTURE_DIR" push --quiet -u origin main feature/5.1.2-navigate-leg-segment
 git -C "$FIXTURE_DIR" tag eval-baseline
 
 # --- Run ---
-OUTPUT_FILE="$FIXTURE_DIR/eval_output.txt"
+OUTPUT_FILE=$(mktemp "/tmp/sdlc_eval_output_${SCENARIO_NAME}_XXXXXX")
 echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
 echo -e "  ${YELLOW}This scenario requires Android SDK and is interactive.${RESET}"
 run_eval_with_args "$FIXTURE_DIR" "$COMMANDS_DIR/sdlc_verify_story.md" "$OUTPUT_FILE" "5.1.2" || true
@@ -140,8 +142,8 @@ assert_judge_score "$JUDGE_RESULT" "outcome_justified" 3 "outcome_justified >= 3
 
 # --- Report & Cleanup ---
 rm -rf "$CANDIDATE_DIR"
-report_scenario_result "$SCENARIO_NAME"
-RESULT=$?
+report_scenario_result "$SCENARIO_NAME" || true
+RESULT=$ASSERTIONS_FAILED
 
 if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/null 2>&1; then
     RESULT_JSON="$RESULTS_DIR/${SCENARIO_NAME}.json"
@@ -152,8 +154,10 @@ if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/nul
     fi
 fi
 
+rm -f "$OUTPUT_FILE"
+
 # cleanup_fixture expects /tmp/sdlc_eval_* prefix
 if [[ -d "$FIXTURE_DIR" && "$FIXTURE_DIR" == /tmp/sdlc_eval_* ]]; then
-    rm -rf "$FIXTURE_DIR"
+    rm -rf "$FIXTURE_DIR" "${FIXTURE_DIR}_remote.git"
 fi
 exit $RESULT
