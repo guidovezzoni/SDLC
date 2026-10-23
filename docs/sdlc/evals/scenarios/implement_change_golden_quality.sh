@@ -50,14 +50,13 @@ begin_assertions
 TASKS_FILE=$(find "$FIXTURE_DIR/openspec/changes" -name "tasks.md" ! -path "*/archive/*" 2>/dev/null | head -1)
 
 if [[ -n "$TASKS_FILE" && -f "$TASKS_FILE" ]]; then
-    # Task completion threshold (device-dependent tasks may remain unchecked)
+    # All tasks checked (no unchecked boxes remain)
     UNCHECKED=$(grep -c '\- \[ \]' "$TASKS_FILE" 2>/dev/null || true)
     CHECKED=$(grep -c '\- \[x\]' "$TASKS_FILE" 2>/dev/null || true)
-    TOTAL_TASKS=$((CHECKED + UNCHECKED))
-    if [[ "$CHECKED" -ge 20 ]]; then
-        assertion_pass "Task completion >= 20 ($CHECKED/$TOTAL_TASKS checked)"
+    if [[ "$UNCHECKED" -eq 0 && "$CHECKED" -gt 0 ]]; then
+        assertion_pass "All tasks checked ($CHECKED tasks, 0 unchecked)"
     else
-        assertion_fail "Task completion >= 20" "$CHECKED/$TOTAL_TASKS checked"
+        assertion_fail "All tasks checked" "$CHECKED checked, $UNCHECKED unchecked — likely no Android device connected"
     fi
 else
     assertion_fail "tasks.md found" "not found under openspec/changes/"
