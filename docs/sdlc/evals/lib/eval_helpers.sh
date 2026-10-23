@@ -889,18 +889,20 @@ Score the candidate against the golden reference using the rubric above. Return 
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
 
     progress "Calling judge API (model: $EVAL_JUDGE_MODEL)..."
+
+    local payload_file
+    payload_file=$(mktemp "${TMPDIR:-/tmp}/eval_judge_payload.XXXXXX")
+    printf '{"model":"%s","max_tokens":%s,"system":%s,"messages":[{"role":"user","content":%s}]}' \
+        "$EVAL_JUDGE_MODEL" "$EVAL_JUDGE_MAX_TOKENS" "$escaped_system" "$escaped_user" > "$payload_file"
+
     local api_response
     api_response=$(curl -s -w "\n%{http_code}" \
         https://api.anthropic.com/v1/messages \
         -H "x-api-key: $ANTHROPIC_API_KEY" \
         -H "content-type: application/json" \
         -H "anthropic-version: 2023-06-01" \
-        -d "{
-            \"model\": \"$EVAL_JUDGE_MODEL\",
-            \"max_tokens\": $EVAL_JUDGE_MAX_TOKENS,
-            \"system\": $escaped_system,
-            \"messages\": [{\"role\": \"user\", \"content\": $escaped_user}]
-        }")
+        -d "@${payload_file}")
+    rm -f "$payload_file"
 
     local http_code body
     http_code=$(echo "$api_response" | tail -1)

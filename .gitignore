@@ -1,4 +1,5 @@
 .idea/*
+.env
 
 # SDLC eval results
 docs/sdlc/evals/results/*.json
