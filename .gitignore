@@ -2,3 +2,4 @@
 
 # SDLC eval results
 docs/sdlc/evals/results/*.json
+docs/sdlc/evals/results/*.txt

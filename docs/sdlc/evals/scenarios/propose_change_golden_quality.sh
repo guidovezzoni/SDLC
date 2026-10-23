@@ -23,16 +23,31 @@ git -C "$FIXTURE_DIR" tag eval-baseline
 
 # --- Run ---
 OUTPUT_FILE=$(mktemp "/tmp/sdlc_eval_output_${SCENARIO_NAME}_XXXXXX")
+EVAL_CMD=$(mktemp "/tmp/sdlc_eval_cmd_${SCENARIO_NAME}_XXXXXX.md")
+{
+    echo "IMPORTANT: This is an automated evaluation run. When the exploration sub-agent"
+    echo "surfaces questions, list them in your output but proceed to generate all OpenSpec"
+    echo "artifacts (proposal, design, tasks, spec) using your best judgment. Do not wait"
+    echo "for human answers. Make reasonable choices and note your assumptions."
+    echo ""
+    cat "$COMMANDS_DIR/sdlc_propose_change.md"
+} > "$EVAL_CMD"
+
 echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
-echo -e "  ${YELLOW}This scenario is interactive — answer questions when prompted.${RESET}"
-run_eval_with_args "$FIXTURE_DIR" "$COMMANDS_DIR/sdlc_propose_change.md" "$OUTPUT_FILE" "5.1.2" || true
+run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "5.1.2" || true
+rm -f "$EVAL_CMD"
 
 # --- T1: Structural Assertions ---
 echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
 begin_assertions
 
-# Find the change directory (name may vary)
-CHANGE_DIR=$(find "$FIXTURE_DIR/openspec/changes" -mindepth 1 -maxdepth 1 -type d ! -name archive 2>/dev/null | head -1)
+# Find the change directory for navigate-leg-segment (name may vary slightly)
+CHANGE_DIR=$(find "$FIXTURE_DIR/openspec/changes" -mindepth 1 -maxdepth 1 -type d \
+    -name "*navigate-leg*" 2>/dev/null | head -1)
+# Fallback: any non-archive directory (for alternate naming)
+if [[ -z "$CHANGE_DIR" ]]; then
+    CHANGE_DIR=$(find "$FIXTURE_DIR/openspec/changes" -mindepth 1 -maxdepth 1 -type d ! -name archive 2>/dev/null | head -1)
+fi
 
 if [[ -n "$CHANGE_DIR" && -d "$CHANGE_DIR" ]]; then
     assertion_pass "Change directory created: $(basename "$CHANGE_DIR")"
@@ -122,6 +137,7 @@ if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/nul
     fi
 fi
 
+cp "$OUTPUT_FILE" "${RESULTS_DIR}/${SCENARIO_NAME}_output.txt" 2>/dev/null || true
 rm -f "$OUTPUT_FILE"
 cleanup_fixture "$FIXTURE_DIR"
 exit $RESULT

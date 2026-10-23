@@ -51,6 +51,20 @@ cleanup_fixture() {
     fi
 }
 
+add_google_services_stub() {
+    local fixture_dir="$1"
+    local app_dir="$fixture_dir/app"
+    [[ -d "$app_dir" ]] || return 0
+    [[ -f "$app_dir/google-services.json" ]] && return 0
+    cat > "$app_dir/google-services.json" << 'GSJSON'
+{
+  "project_info": {"project_number":"0","project_id":"eval-stub","storage_bucket":""},
+  "client": [{"client_info":{"mobilesdk_app_id":"1:0:android:eval","android_client_info":{"package_name":"com.guidovezzoni.venice"}},"api_key":[{"current_key":"stub"}]}],
+  "configuration_version": "1"
+}
+GSJSON
+}
+
 add_local_remote() {
     local fixture_dir="$1"
     local remote_dir="${fixture_dir}_remote.git"

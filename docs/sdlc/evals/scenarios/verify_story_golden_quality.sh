@@ -36,6 +36,7 @@ git -C "$FIXTURE_DIR" rm -rf --quiet .
 git -C "$FIXTURE_DIR" -c user.name="eval" -c user.email="eval@test" \
     commit -m "clear tree" --quiet --allow-empty
 tar xzf "$EVAL_ROOT/goldenreference/verify_story/repo-snapshot.tar.gz" -C "$FIXTURE_DIR"
+add_google_services_stub "$FIXTURE_DIR"
 git -C "$FIXTURE_DIR" add -A
 git -C "$FIXTURE_DIR" -c user.name="eval" -c user.email="eval@test" \
     commit -m "implement story 5.1.2" --quiet
@@ -45,9 +46,19 @@ git -C "$FIXTURE_DIR" tag eval-baseline
 
 # --- Run ---
 OUTPUT_FILE=$(mktemp "/tmp/sdlc_eval_output_${SCENARIO_NAME}_XXXXXX")
+EVAL_CMD=$(mktemp "/tmp/sdlc_eval_cmd_${SCENARIO_NAME}_XXXXXX.md")
+{
+    echo "IMPORTANT: This is an automated evaluation run. If no Android device is connected,"
+    echo "skip on-device tests and proceed with all remaining gates. If a build or test step"
+    echo "fails, record the failure and continue with the remaining gates. Complete the full"
+    echo "lifecycle: rename story, update index, archive change, sync spec, write report."
+    echo ""
+    cat "$COMMANDS_DIR/sdlc_verify_story.md"
+} > "$EVAL_CMD"
+
 echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
-echo -e "  ${YELLOW}This scenario requires Android SDK and is interactive.${RESET}"
-run_eval_with_args "$FIXTURE_DIR" "$COMMANDS_DIR/sdlc_verify_story.md" "$OUTPUT_FILE" "5.1.2" || true
+run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "5.1.2" || true
+rm -f "$EVAL_CMD"
 
 # --- T1: Structural Assertions ---
 echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
@@ -60,48 +71,49 @@ REPORT="$FIXTURE_DIR/docs/reports/5.1.2-navigate-leg-segment.html"
 assert_file_exists "$STORY_DIR/5.1.2-navigate-leg-segment-DONE.md" \
     "Story file renamed to -DONE.md"
 
-# No WIP file remains
-WIP_COUNT=$(find "$STORY_DIR" -name "*-WIP.md" 2>/dev/null | wc -l)
-if [[ "$WIP_COUNT" -eq 0 ]]; then
-    assertion_pass "No -WIP.md file remains"
+# No 5.1.2 WIP file remains
+if [[ ! -f "$STORY_DIR/5.1.2-navigate-leg-segment-WIP.md" ]]; then
+    assertion_pass "5.1.2 WIP file removed"
 else
-    assertion_fail "No -WIP.md file remains" "found $WIP_COUNT WIP files"
+    assertion_fail "5.1.2 WIP file removed" "still exists"
 fi
 
-# Index references DONE
-if [[ -f "$STORY_DIR/index.md" ]] && grep -q "DONE" "$STORY_DIR/index.md"; then
-    assertion_pass "Index updated with DONE filename"
+# Index references 5.1.2 DONE
+if [[ -f "$STORY_DIR/index.md" ]] && grep -q "5.1.2.*DONE" "$STORY_DIR/index.md"; then
+    assertion_pass "Index updated with 5.1.2 DONE filename"
 else
-    assertion_fail "Index updated with DONE filename"
+    assertion_fail "Index updated with 5.1.2 DONE filename"
 fi
 
-# Change directory moved to archive
-ARCHIVE_DIR=$(find "$FIXTURE_DIR/openspec/changes/archive" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -1)
+# navigate-leg-segment change archived
+ARCHIVE_DIR=$(find "$FIXTURE_DIR/openspec/changes/archive" -mindepth 1 -maxdepth 1 -type d \
+    -name "*navigate-leg-segment*" 2>/dev/null | head -1)
 if [[ -n "$ARCHIVE_DIR" && -d "$ARCHIVE_DIR" ]]; then
     assertion_pass "Change archived: $(basename "$ARCHIVE_DIR")"
 else
-    assertion_fail "Change directory moved to archive"
+    assertion_fail "navigate-leg-segment change archived"
 fi
 
-# Active change directory removed
-ACTIVE_CHANGE=$(find "$FIXTURE_DIR/openspec/changes" -mindepth 1 -maxdepth 1 -type d \
-    ! -name archive 2>/dev/null | head -1)
-if [[ -z "$ACTIVE_CHANGE" ]]; then
+# Active navigate-leg-segment directory removed
+if [[ ! -d "$FIXTURE_DIR/openspec/changes/navigate-leg-segment" ]]; then
     assertion_pass "Active change directory removed"
 else
-    assertion_fail "Active change directory removed" "still exists: $(basename "$ACTIVE_CHANGE")"
+    assertion_fail "Active change directory removed" "navigate-leg-segment still exists"
 fi
 
-# Spec synced to openspec/specs/
-SPEC_COUNT=$(find "$FIXTURE_DIR/openspec/specs" -name "spec.md" 2>/dev/null | wc -l)
-if [[ "$SPEC_COUNT" -ge 1 ]]; then
-    assertion_pass "Living spec synced ($SPEC_COUNT spec files)"
+# leg-navigation spec synced
+if find "$FIXTURE_DIR/openspec/specs" -path "*/leg-navigation/spec.md" 2>/dev/null | grep -q .; then
+    assertion_pass "Living spec synced (leg-navigation)"
 else
-    assertion_fail "Living spec synced" "no spec.md found under openspec/specs/"
+    assertion_fail "Living spec synced" "leg-navigation/spec.md not found under openspec/specs/"
 fi
 
-# Report contains gate results
-if [[ -f "$REPORT" ]]; then
+# Report was updated by verify_story (not just pre-existing from implementation)
+REPORT_REL="docs/reports/5.1.2-navigate-leg-segment.html"
+REPORT_CHANGED=$(git -C "$FIXTURE_DIR" diff eval-baseline -- "$REPORT_REL" 2>/dev/null | wc -l)
+if [[ "$REPORT_CHANGED" -gt 0 ]]; then
+    assertion_pass "Report modified from baseline ($REPORT_CHANGED diff lines)"
+
     GATE_KEYWORDS=0
     for gate in "TODO" "security" "build\|static analysis\|detekt\|lint" "unit test" \
                 "coverage" "Definition of Done\|DoD"; do
@@ -115,16 +127,15 @@ if [[ -f "$REPORT" ]]; then
         assertion_fail "Report contains gate results" "found $GATE_KEYWORDS gate keywords, expected >= 4"
     fi
 
-    # Report contains PASSED outcome
     if grep -qi "PASS" "$REPORT"; then
         assertion_pass "Report contains PASS outcome"
     else
         assertion_fail "Report contains PASS outcome"
     fi
 else
-    assertion_fail "Report file exists" "not found"
-    assertion_fail "Report contains gate results" "report not found"
-    assertion_fail "Report contains PASS outcome" "report not found"
+    assertion_fail "Report modified from baseline" "report unchanged — verify_story did not update it"
+    assertion_fail "Report contains gate results" "report not updated"
+    assertion_fail "Report contains PASS outcome" "report not updated"
 fi
 
 # --- T2: LLM-as-judge ---
@@ -154,6 +165,7 @@ if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/nul
     fi
 fi
 
+cp "$OUTPUT_FILE" "${RESULTS_DIR}/${SCENARIO_NAME}_output.txt" 2>/dev/null || true
 rm -f "$OUTPUT_FILE"
 
 # cleanup_fixture expects /tmp/sdlc_eval_* prefix
