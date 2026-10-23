@@ -11,6 +11,14 @@ COMMANDS_DIR="$PROJECT_ROOT/docs/sdlc/commands"
 
 EVAL_TOOL="${EVAL_TOOL:-claude}"
 
+ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
+EVAL_JUDGE_MODEL="${EVAL_JUDGE_MODEL:-}"
+EVAL_JUDGE_MAX_TOKENS="${EVAL_JUDGE_MAX_TOKENS:-4096}"
+
+EVAL_START_TIME=""
+EVAL_END_TIME=""
+EVAL_DURATION=""
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -47,6 +55,37 @@ snapshot_fixture() {
     local fixture_dir="$1"
     FIXTURE_SNAPSHOT=$(mktemp "/tmp/sdlc_eval_snapshot_XXXXXX")
     find "$fixture_dir" -not -path '*/.git/*' -not -path '*/.git' -not -name 'eval_output.txt' -type f | sort > "$FIXTURE_SNAPSHOT"
+}
+
+create_golden_fixture() {
+    local command_name="$1"
+    local tarball="$EVAL_ROOT/goldenreference/${command_name}/repo-snapshot.tar.gz"
+
+    if [[ ! -f "$tarball" ]]; then
+        echo "Error: Golden reference tarball not found: $tarball" >&2
+        return 1
+    fi
+
+    local fixture_dir
+    fixture_dir=$(mktemp -d "/tmp/sdlc_eval_golden_${command_name}_XXXXXX")
+
+    tar xzf "$tarball" -C "$fixture_dir"
+    git -C "$fixture_dir" init --quiet
+    git -C "$fixture_dir" add -A
+    git -C "$fixture_dir" -c user.name="eval" -c user.email="eval@test" \
+        commit -m "golden reference baseline" --quiet
+
+    echo "$fixture_dir"
+}
+
+get_golden_output_dir() {
+    local command_name="$1"
+    echo "$EVAL_ROOT/goldenreference/${command_name}/output"
+}
+
+get_golden_input() {
+    local command_name="$1"
+    echo "$EVAL_ROOT/goldenreference/${command_name}/input.md"
 }
 
 # ---------------------------------------------------------------------------
@@ -554,6 +593,10 @@ run_eval() {
     local prompt
     prompt="$(cat "$command_file")"
 
+    EVAL_START_TIME=$(date -Iseconds)
+    local start_epoch
+    start_epoch=$(date +%s)
+
     local exit_code=0
     (cd "$fixture_dir" && "$EVAL_TOOL" \
         -p "$prompt" \
@@ -561,6 +604,11 @@ run_eval() {
         --no-session-persistence \
         --output-format text \
     ) > "$output_file" 2>&1 || exit_code=$?
+
+    EVAL_END_TIME=$(date -Iseconds)
+    local end_epoch
+    end_epoch=$(date +%s)
+    EVAL_DURATION=$((end_epoch - start_epoch))
 
     return $exit_code
 }
@@ -589,10 +637,189 @@ run_eval_with_args() {
         tool_args+=(--max-turns "$max_turns")
     fi
 
+    EVAL_START_TIME=$(date -Iseconds)
+    local start_epoch
+    start_epoch=$(date +%s)
+
     local exit_code=0
     (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
 
+    EVAL_END_TIME=$(date -Iseconds)
+    local end_epoch
+    end_epoch=$(date +%s)
+    EVAL_DURATION=$((end_epoch - start_epoch))
+
     return $exit_code
+}
+
+# ---------------------------------------------------------------------------
+# LLM-as-judge (T2 evaluation)
+# ---------------------------------------------------------------------------
+
+run_judge() {
+    local rubric_file="$1"
+    local golden_dir="$2"
+    local candidate_dir="$3"
+    local result_file="$4"
+
+    if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: ANTHROPIC_API_KEY not set"
+        echo '{"skipped": true, "reason": "ANTHROPIC_API_KEY not set"}' > "$result_file"
+        return 2
+    fi
+
+    if [[ -z "$EVAL_JUDGE_MODEL" ]]; then
+        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: EVAL_JUDGE_MODEL not set"
+        echo '{"skipped": true, "reason": "EVAL_JUDGE_MODEL not set"}' > "$result_file"
+        return 2
+    fi
+
+    local rubric golden_files candidate_files
+    rubric="$(cat "$rubric_file")"
+
+    golden_files=""
+    while IFS= read -r -d '' file; do
+        local rel_path="${file#"$golden_dir"/}"
+        golden_files="${golden_files}--- ${rel_path} ---
+$(cat "$file")
+
+"
+    done < <(find "$golden_dir" -type f -print0 | sort -z)
+
+    candidate_files=""
+    while IFS= read -r -d '' file; do
+        local rel_path="${file#"$candidate_dir"/}"
+        candidate_files="${candidate_files}--- ${rel_path} ---
+$(cat "$file")
+
+"
+    done < <(find "$candidate_dir" -type f -print0 | sort -z)
+
+    local system_prompt
+    system_prompt="You are an evaluation judge for an AI coding assistant pipeline. You compare a candidate output against a golden reference using the provided rubric.
+
+Return ONLY a JSON object with this structure:
+{
+  \"criteria\": {
+    \"<criterion_name>\": {
+      \"score\": <number>,
+      \"max\": <number>,
+      \"rationale\": \"<one sentence explanation>\"
+    }
+  }
+}
+
+Score each criterion independently. Be strict: the golden reference represents high-quality output, and the candidate should match or exceed it on each dimension."
+
+    local user_prompt
+    user_prompt="## Rubric
+
+${rubric}
+
+## Golden Reference Artifacts
+
+${golden_files}
+
+## Candidate Artifacts
+
+${candidate_files}
+
+Score the candidate against the golden reference using the rubric above. Return JSON only."
+
+    local escaped_system escaped_user
+    escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
+    escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
+
+    local api_response
+    api_response=$(curl -s -w "\n%{http_code}" \
+        https://api.anthropic.com/v1/messages \
+        -H "x-api-key: $ANTHROPIC_API_KEY" \
+        -H "content-type: application/json" \
+        -H "anthropic-version: 2023-06-01" \
+        -d "{
+            \"model\": \"$EVAL_JUDGE_MODEL\",
+            \"max_tokens\": $EVAL_JUDGE_MAX_TOKENS,
+            \"system\": $escaped_system,
+            \"messages\": [{\"role\": \"user\", \"content\": $escaped_user}]
+        }")
+
+    local http_code body
+    http_code=$(echo "$api_response" | tail -1)
+    body=$(echo "$api_response" | sed '$d')
+
+    if [[ "$http_code" != "200" ]]; then
+        echo -e "  ${RED}ERROR${RESET} T2 judge API call failed (HTTP $http_code)"
+        echo "{\"error\": true, \"http_code\": $http_code, \"body\": $(echo "$body" | jq -Rs .)}" > "$result_file"
+        return 1
+    fi
+
+    local text_content
+    text_content=$(echo "$body" | jq -r '.content[0].text // empty')
+
+    if [[ -z "$text_content" ]]; then
+        echo -e "  ${RED}ERROR${RESET} T2 judge returned empty response"
+        echo "{\"error\": true, \"reason\": \"empty response\", \"raw\": $(echo "$body" | jq -Rs .)}" > "$result_file"
+        return 1
+    fi
+
+    local json_content=""
+
+    if echo "$text_content" | jq . > /dev/null 2>&1; then
+        json_content="$text_content"
+    elif json_content=$(echo "$text_content" | sed -n '/^```/,/^```/{/^```/d;p}') && \
+         [[ -n "$json_content" ]] && echo "$json_content" | jq . > /dev/null 2>&1; then
+        :
+    else
+        echo -e "  ${RED}ERROR${RESET} T2 judge returned invalid JSON"
+        echo "{\"error\": true, \"reason\": \"invalid JSON\", \"raw\": $(echo "$text_content" | jq -Rs .)}" > "$result_file"
+        return 1
+    fi
+
+    echo "$json_content" > "$result_file"
+    echo -e "  ${GREEN}OK${RESET} T2 judge scores written to $result_file"
+    return 0
+}
+
+assert_judge_score() {
+    local json_file="$1"
+    local criterion="$2"
+    local min_score="$3"
+    local description="${4:-$criterion >= $min_score}"
+
+    if [[ ! -f "$json_file" ]]; then
+        assertion_fail "$description" "judge result file not found: $json_file"
+        return
+    fi
+
+    local skipped
+    skipped=$(jq -r '.skipped // false' "$json_file" 2>/dev/null)
+    if [[ "$skipped" == "true" ]]; then
+        echo -e "    ${YELLOW}SKIP${RESET} $description (judge was skipped)"
+        return
+    fi
+
+    local error
+    error=$(jq -r '.error // false' "$json_file" 2>/dev/null)
+    if [[ "$error" == "true" ]]; then
+        assertion_fail "$description" "judge returned an error"
+        return
+    fi
+
+    local score
+    score=$(jq -r ".criteria.\"$criterion\".score // empty" "$json_file" 2>/dev/null)
+
+    if [[ -z "$score" ]]; then
+        assertion_fail "$description" "criterion '$criterion' not found in judge output"
+        return
+    fi
+
+    if (( $(echo "$score >= $min_score" | bc -l) )); then
+        assertion_pass "$description (score: $score)"
+    else
+        local rationale
+        rationale=$(jq -r ".criteria.\"$criterion\".rationale // \"no rationale\"" "$json_file" 2>/dev/null)
+        assertion_fail "$description" "score $score < $min_score — $rationale"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -803,6 +1030,19 @@ report_scenario_result() {
 
     # Output JSON result to results dir if RESULTS_DIR is set
     if [[ -n "${RESULTS_DIR:-}" ]]; then
+        local timing_json=""
+        if [[ -n "${EVAL_DURATION:-}" && "$EVAL_DURATION" -gt 0 ]] 2>/dev/null; then
+            timing_json=$(cat << TIMING_EOF
+,
+  "timing": {
+    "start": "$EVAL_START_TIME",
+    "end": "$EVAL_END_TIME",
+    "duration_seconds": $EVAL_DURATION
+  }
+TIMING_EOF
+)
+        fi
+
         cat > "$RESULTS_DIR/${scenario_name}.json" << RESULT_EOF
 {
   "scenario": "$scenario_name",
@@ -811,7 +1051,7 @@ report_scenario_result() {
   "total": $ASSERTIONS_TOTAL,
   "result": "$([ "$ASSERTIONS_FAILED" -eq 0 ] && echo "PASS" || echo "FAIL")",
   "tool": "$EVAL_TOOL",
-  "timestamp": "$(date -Iseconds)"
+  "timestamp": "$(date -Iseconds)"${timing_json}
 }
 RESULT_EOF
     fi
