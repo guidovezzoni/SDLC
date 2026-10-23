@@ -17,11 +17,14 @@ GOLDEN_OUTPUT=$(get_golden_output_dir "implement_change")
 RUBRIC="$EVAL_ROOT/rubrics/implement_change_rubric.md"
 
 # --- Setup ---
+echo -e "\n  ${BOLD}Setup${RESET}"
 FIXTURE_DIR=$(create_golden_fixture "implement_change")
+progress "Adding google-services stub..."
 add_google_services_stub "$FIXTURE_DIR"
 git -C "$FIXTURE_DIR" add -f app/google-services.json 2>/dev/null || true
 git -C "$FIXTURE_DIR" -c user.name="eval" -c user.email="eval@test" \
     commit -m "add google-services stub" --quiet --allow-empty
+progress "Creating feature branch..."
 git -C "$FIXTURE_DIR" checkout -b feature/5.1.2-navigate-leg-segment --quiet
 git -C "$FIXTURE_DIR" push --quiet --all origin
 git -C "$FIXTURE_DIR" branch --set-upstream-to=origin/feature/5.1.2-navigate-leg-segment >/dev/null 2>&1 || true
@@ -38,14 +41,17 @@ EVAL_CMD=$(mktemp "/tmp/sdlc_eval_cmd_${SCENARIO_NAME}_XXXXXX.md")
     cat "$COMMANDS_DIR/sdlc_implement_change.md"
 } > "$EVAL_CMD"
 
-echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
+echo -e "\n  ${BOLD}Command Execution${RESET}"
+echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME (this may take several minutes)...${RESET}"
 run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "" || true
+echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 rm -f "$EVAL_CMD"
 
 # --- T1: Structural Assertions ---
 echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
 begin_assertions
 
+echo -e "  ${DIM}Checking task completion...${RESET}"
 # Find the tasks file
 TASKS_FILE=$(find "$FIXTURE_DIR/openspec/changes" -name "tasks.md" ! -path "*/archive/*" 2>/dev/null | head -1)
 
@@ -62,6 +68,7 @@ else
     assertion_fail "tasks.md found" "not found under openspec/changes/"
 fi
 
+echo -e "  ${DIM}Checking source and test files...${RESET}"
 # Source files created under app/src/main/java/
 SRC_COUNT=$(find "$FIXTURE_DIR/app/src/main/java" -name "*.kt" -newer "$FIXTURE_DIR/.git/refs/tags/eval-baseline" 2>/dev/null | wc -l)
 if [[ "$SRC_COUNT" -ge 4 ]]; then
@@ -93,6 +100,7 @@ else
     assertion_fail "UI test files created" "found $UI_TEST_COUNT, expected >= 1"
 fi
 
+echo -e "  ${DIM}Checking locale strings and report...${RESET}"
 # Locale strings updated (EN, IT, ES-rES)
 for locale_dir in "values" "values-it" "values-es-rES"; do
     STRINGS="$FIXTURE_DIR/app/src/main/res/$locale_dir/strings.xml"

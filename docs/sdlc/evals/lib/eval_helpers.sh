@@ -29,6 +29,10 @@ BOLD='\033[1m'
 DIM='\033[2m'
 RESET='\033[0m'
 
+progress() {
+    echo -e "  ${DIM}▸ $1${RESET}" >&2
+}
+
 ASSERTIONS_PASSED=0
 ASSERTIONS_FAILED=0
 ASSERTIONS_TOTAL=0
@@ -92,10 +96,12 @@ create_golden_fixture() {
         return 1
     fi
 
+    progress "Extracting golden reference for ${command_name}..."
     local fixture_dir
     fixture_dir=$(mktemp -d "/tmp/sdlc_eval_golden_${command_name}_XXXXXX")
 
     tar xzf "$tarball" -C "$fixture_dir"
+    progress "Initialising isolated git repo..."
     git -C "$fixture_dir" init --quiet
     git -C "$fixture_dir" add -A
     git -C "$fixture_dir" -c user.name="eval" -c user.email="eval@test" \
@@ -103,6 +109,7 @@ create_golden_fixture() {
     git -C "$fixture_dir" branch -M main
 
     add_local_remote "$fixture_dir"
+    progress "Fixture ready: $fixture_dir"
 
     echo "$fixture_dir"
 }
@@ -747,6 +754,7 @@ run_eval_with_args() {
 
 collect_candidate_from_baseline() {
     local fixture_dir="$1"
+    progress "Collecting candidate artifacts from baseline diff..."
     local candidate_dir
     candidate_dir=$(mktemp -d "/tmp/sdlc_eval_candidate_XXXXXX")
 
@@ -851,6 +859,7 @@ Score the candidate against the golden reference using the rubric above. Return 
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
 
+    progress "Calling judge API (model: $EVAL_JUDGE_MODEL)..."
     local api_response
     api_response=$(curl -s -w "\n%{http_code}" \
         https://api.anthropic.com/v1/messages \

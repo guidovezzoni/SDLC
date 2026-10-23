@@ -16,7 +16,9 @@ GOLDEN_OUTPUT=$(get_golden_output_dir "propose_change")
 RUBRIC="$EVAL_ROOT/rubrics/propose_change_rubric.md"
 
 # --- Setup ---
+echo -e "\n  ${BOLD}Setup${RESET}"
 FIXTURE_DIR=$(create_golden_fixture "propose_change")
+progress "Creating feature branch..."
 git -C "$FIXTURE_DIR" checkout -b feature/5.1.2-navigate-leg-segment --quiet
 git -C "$FIXTURE_DIR" push --quiet -u origin feature/5.1.2-navigate-leg-segment
 git -C "$FIXTURE_DIR" tag eval-baseline
@@ -33,14 +35,17 @@ EVAL_CMD=$(mktemp "/tmp/sdlc_eval_cmd_${SCENARIO_NAME}_XXXXXX.md")
     cat "$COMMANDS_DIR/sdlc_propose_change.md"
 } > "$EVAL_CMD"
 
-echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
+echo -e "\n  ${BOLD}Command Execution${RESET}"
+echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME (this may take several minutes)...${RESET}"
 run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "5.1.2" || true
+echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 rm -f "$EVAL_CMD"
 
 # --- T1: Structural Assertions ---
 echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
 begin_assertions
 
+echo -e "  ${DIM}Checking change directory...${RESET}"
 # Find the change directory for navigate-leg-segment (name may vary slightly)
 CHANGE_DIR=$(find "$FIXTURE_DIR/openspec/changes" -mindepth 1 -maxdepth 1 -type d \
     -name "*navigate-leg*" 2>/dev/null | head -1)
@@ -71,6 +76,7 @@ if [[ -n "$CHANGE_DIR" ]]; then
 
     TASKS_FILE="$CHANGE_DIR/tasks.md"
 
+    echo -e "  ${DIM}Checking tasks structure...${RESET}"
     # Checkbox format
     if grep -qE '\- \[[ x]\]' "$TASKS_FILE" 2>/dev/null; then
         assertion_pass "tasks.md has checkbox format"
@@ -100,6 +106,7 @@ else
     done
 fi
 
+echo -e "  ${DIM}Checking report...${RESET}"
 # Report updated
 REPORT="$FIXTURE_DIR/docs/reports/5.1.2-navigate-leg-segment.html"
 if [[ -f "$REPORT" ]] && grep -qi "propos" "$REPORT"; then

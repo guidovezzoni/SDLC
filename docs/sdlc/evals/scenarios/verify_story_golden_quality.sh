@@ -20,8 +20,10 @@ GOLDEN_OUTPUT=$(get_golden_output_dir "verify_story")
 RUBRIC="$EVAL_ROOT/rubrics/verify_story_rubric.md"
 
 # --- Setup (two-tarball approach for meaningful git diff) ---
+echo -e "\n  ${BOLD}Setup${RESET}"
 FIXTURE_DIR=$(mktemp -d "/tmp/sdlc_eval_golden_verify_story_XXXXXX")
 
+progress "Extracting main branch (pre-SDLC state)..."
 # Main branch: clean project state before any SDLC commands
 tar xzf "$EVAL_ROOT/goldenreference/open_story/repo-snapshot.tar.gz" -C "$FIXTURE_DIR"
 git -C "$FIXTURE_DIR" init --quiet
@@ -30,6 +32,7 @@ git -C "$FIXTURE_DIR" -c user.name="eval" -c user.email="eval@test" \
     commit -m "golden reference baseline" --quiet
 git -C "$FIXTURE_DIR" branch -M main
 
+progress "Creating feature branch (post-implementation state)..."
 # Feature branch: state after implement_change (ready for verification)
 git -C "$FIXTURE_DIR" checkout -b feature/5.1.2-navigate-leg-segment --quiet
 git -C "$FIXTURE_DIR" rm -rf --quiet .
@@ -43,6 +46,7 @@ git -C "$FIXTURE_DIR" -c user.name="eval" -c user.email="eval@test" \
 add_local_remote "$FIXTURE_DIR"
 git -C "$FIXTURE_DIR" push --quiet -u origin main feature/5.1.2-navigate-leg-segment
 git -C "$FIXTURE_DIR" tag eval-baseline
+progress "Fixture ready: $FIXTURE_DIR"
 
 # --- Run ---
 OUTPUT_FILE=$(mktemp "/tmp/sdlc_eval_output_${SCENARIO_NAME}_XXXXXX")
@@ -56,8 +60,10 @@ EVAL_CMD=$(mktemp "/tmp/sdlc_eval_cmd_${SCENARIO_NAME}_XXXXXX.md")
     cat "$COMMANDS_DIR/sdlc_verify_story.md"
 } > "$EVAL_CMD"
 
-echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
+echo -e "\n  ${BOLD}Command Execution${RESET}"
+echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME (this may take several minutes)...${RESET}"
 run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "5.1.2" || true
+echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 rm -f "$EVAL_CMD"
 
 # --- T1: Structural Assertions ---
@@ -67,6 +73,7 @@ begin_assertions
 STORY_DIR="$FIXTURE_DIR/docs/userstories"
 REPORT="$FIXTURE_DIR/docs/reports/5.1.2-navigate-leg-segment.html"
 
+echo -e "  ${DIM}Checking story lifecycle...${RESET}"
 # Story renamed to DONE
 assert_file_exists "$STORY_DIR/5.1.2-navigate-leg-segment-DONE.md" \
     "Story file renamed to -DONE.md"
@@ -85,6 +92,7 @@ else
     assertion_fail "Index updated with 5.1.2 DONE filename"
 fi
 
+echo -e "  ${DIM}Checking archive and spec sync...${RESET}"
 # navigate-leg-segment change archived
 ARCHIVE_DIR=$(find "$FIXTURE_DIR/openspec/changes/archive" -mindepth 1 -maxdepth 1 -type d \
     -name "*navigate-leg-segment*" 2>/dev/null | head -1)
@@ -108,6 +116,7 @@ else
     assertion_fail "Living spec synced" "leg-navigation/spec.md not found under openspec/specs/"
 fi
 
+echo -e "  ${DIM}Checking report and gates...${RESET}"
 # Report was updated by verify_story (not just pre-existing from implementation)
 REPORT_REL="docs/reports/5.1.2-navigate-leg-segment.html"
 REPORT_CHANGED=$(git -C "$FIXTURE_DIR" diff eval-baseline -- "$REPORT_REL" 2>/dev/null | wc -l)

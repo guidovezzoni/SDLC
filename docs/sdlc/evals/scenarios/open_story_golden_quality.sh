@@ -16,13 +16,16 @@ GOLDEN_OUTPUT=$(get_golden_output_dir "open_story")
 RUBRIC="$EVAL_ROOT/rubrics/open_story_rubric.md"
 
 # --- Setup ---
+echo -e "\n  ${BOLD}Setup${RESET}"
 FIXTURE_DIR=$(create_golden_fixture "open_story")
 git -C "$FIXTURE_DIR" tag eval-baseline
 
 # --- Run ---
 OUTPUT_FILE=$(mktemp "/tmp/sdlc_eval_output_${SCENARIO_NAME}_XXXXXX")
-echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME...${RESET}"
+echo -e "\n  ${BOLD}Command Execution${RESET}"
+echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME (this may take several minutes)...${RESET}"
 run_eval_with_args "$FIXTURE_DIR" "$COMMANDS_DIR/sdlc_open_story.md" "$OUTPUT_FILE" "5.1.2" || true
+echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 
 # --- T1: Structural Assertions ---
 echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
@@ -32,6 +35,7 @@ STORY_DIR="$FIXTURE_DIR/docs/userstories"
 REPORT_DIR="$FIXTURE_DIR/docs/reports"
 WIP_FILE="$STORY_DIR/5.1.2-navigate-leg-segment-WIP.md"
 
+echo -e "  ${DIM}Checking file operations...${RESET}"
 assert_file_not_exists "$STORY_DIR/5.1.2-navigate-leg-segment.md" \
     "Original story file removed (git mv)"
 
@@ -44,6 +48,7 @@ else
     assertion_fail "Original user story section present"
 fi
 
+echo -e "  ${DIM}Checking required sections...${RESET}"
 SECTION_COUNT=0
 for pattern in \
     "## Description" \
@@ -69,6 +74,7 @@ else
     assertion_fail "Required sections present" "found $SECTION_COUNT/12, expected >= 10"
 fi
 
+echo -e "  ${DIM}Checking index and report...${RESET}"
 if [[ -f "$STORY_DIR/index.md" ]] && grep -q "WIP" "$STORY_DIR/index.md"; then
     assertion_pass "Index updated with WIP filename"
 else
