@@ -18,6 +18,9 @@ EVAL_JUDGE_MAX_TOKENS="${EVAL_JUDGE_MAX_TOKENS:-4096}"
 EVAL_START_TIME=""
 EVAL_END_TIME=""
 EVAL_DURATION=""
+EVAL_MODEL_USAGE=""
+EVAL_SUBAGENT_STATS=""
+EVAL_TOTAL_COST=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -609,6 +612,40 @@ INDEX_EOF
 # Eval execution
 # ---------------------------------------------------------------------------
 
+extract_model_usage() {
+    local json_file="$1"
+    local text_file="$2"
+
+    if ! command -v jq > /dev/null 2>&1; then
+        EVAL_MODEL_USAGE=""
+        EVAL_SUBAGENT_STATS=""
+        EVAL_TOTAL_COST=""
+        cp "$json_file" "$text_file"
+        return
+    fi
+
+    local result
+    result=$(jq -r '.result // empty' "$json_file" 2>/dev/null)
+    if [[ -n "$result" ]]; then
+        echo "$result" > "$text_file"
+    else
+        cp "$json_file" "$text_file"
+    fi
+
+    EVAL_MODEL_USAGE=$(jq -c '.modelUsage // empty' "$json_file" 2>/dev/null)
+    EVAL_SUBAGENT_STATS=$(jq -c '.subagent_stats // empty' "$json_file" 2>/dev/null)
+    EVAL_TOTAL_COST=$(jq -r '.total_cost_usd // empty' "$json_file" 2>/dev/null)
+
+    if [[ -n "$EVAL_MODEL_USAGE" ]]; then
+        local models
+        models=$(echo "$EVAL_MODEL_USAGE" | jq -r 'keys | join(", ")' 2>/dev/null)
+        local subagents_spawned
+        subagents_spawned=$(echo "$EVAL_SUBAGENT_STATS" | jq -r '.spawned // 0' 2>/dev/null)
+        echo -e "  ${DIM}Models: ${models}${RESET}"
+        echo -e "  ${DIM}Subagents spawned: ${subagents_spawned} | Cost: \$${EVAL_TOTAL_COST:-unknown}${RESET}"
+    fi
+}
+
 run_eval() {
     local fixture_dir="$1"
     local command_file="$2"
@@ -624,12 +661,25 @@ run_eval() {
     start_epoch=$(date +%s)
 
     local exit_code=0
-    (cd "$fixture_dir" && "$EVAL_TOOL" \
-        -p "$prompt" \
-        --dangerously-skip-permissions \
-        --no-session-persistence \
-        --output-format text \
-    ) > "$output_file" 2>&1 || exit_code=$?
+    if [[ "$EVAL_TOOL" == "claude" ]]; then
+        local json_output
+        json_output=$(mktemp "/tmp/sdlc_eval_json_XXXXXX")
+        (cd "$fixture_dir" && "$EVAL_TOOL" \
+            -p "$prompt" \
+            --dangerously-skip-permissions \
+            --no-session-persistence \
+            --output-format json \
+        ) > "$json_output" 2>&1 || exit_code=$?
+        extract_model_usage "$json_output" "$output_file"
+        rm -f "$json_output"
+    else
+        (cd "$fixture_dir" && "$EVAL_TOOL" \
+            -p "$prompt" \
+            --dangerously-skip-permissions \
+            --no-session-persistence \
+            --output-format text \
+        ) > "$output_file" 2>&1 || exit_code=$?
+    fi
 
     EVAL_END_TIME=$(date -Iseconds)
     local end_epoch
@@ -652,11 +702,16 @@ run_eval_with_args() {
     prompt="$(cat "$command_file")"
     prompt="${prompt//\$ARGUMENTS/$args}"
 
+    local output_format="text"
+    if [[ "$EVAL_TOOL" == "claude" ]]; then
+        output_format="json"
+    fi
+
     local tool_args=(
         -p "$prompt"
         --dangerously-skip-permissions
         --no-session-persistence
-        --output-format text
+        --output-format "$output_format"
     )
 
     if [[ -n "$max_turns" ]]; then
@@ -668,7 +723,15 @@ run_eval_with_args() {
     start_epoch=$(date +%s)
 
     local exit_code=0
-    (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
+    if [[ "$output_format" == "json" ]]; then
+        local json_output
+        json_output=$(mktemp "/tmp/sdlc_eval_json_XXXXXX")
+        (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$json_output" 2>&1 || exit_code=$?
+        extract_model_usage "$json_output" "$output_file"
+        rm -f "$json_output"
+    else
+        (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
+    fi
 
     EVAL_END_TIME=$(date -Iseconds)
     local end_epoch
@@ -1101,6 +1164,16 @@ TIMING_EOF
 )
         fi
 
+        local model_json=""
+        if [[ -n "${EVAL_MODEL_USAGE:-}" ]] && command -v jq > /dev/null 2>&1; then
+            local stats="${EVAL_SUBAGENT_STATS}"
+            [[ -z "$stats" ]] && stats="{}"
+            model_json=",
+  \"model_usage\": ${EVAL_MODEL_USAGE},
+  \"subagent_stats\": ${stats},
+  \"total_cost_usd\": ${EVAL_TOTAL_COST:-null}"
+        fi
+
         cat > "$RESULTS_DIR/${scenario_name}.json" << RESULT_EOF
 {
   "scenario": "$scenario_name",
@@ -1109,7 +1182,7 @@ TIMING_EOF
   "total": $ASSERTIONS_TOTAL,
   "result": "$([ "$ASSERTIONS_FAILED" -eq 0 ] && echo "PASS" || echo "FAIL")",
   "tool": "$EVAL_TOOL",
-  "timestamp": "$(date -Iseconds)"${timing_json}
+  "timestamp": "$(date -Iseconds)"${timing_json}${model_json}
 }
 RESULT_EOF
     fi
