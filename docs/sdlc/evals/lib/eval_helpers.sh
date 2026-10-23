@@ -653,6 +653,38 @@ run_eval_with_args() {
 }
 
 # ---------------------------------------------------------------------------
+# Candidate artifact collection for T2 judge
+# ---------------------------------------------------------------------------
+
+collect_candidate_from_baseline() {
+    local fixture_dir="$1"
+    local candidate_dir
+    candidate_dir=$(mktemp -d "/tmp/sdlc_eval_candidate_XXXXXX")
+
+    local baseline_ref="eval-baseline"
+    if ! git -C "$fixture_dir" rev-parse "$baseline_ref" >/dev/null 2>&1; then
+        baseline_ref=$(git -C "$fixture_dir" rev-list --max-parents=0 HEAD 2>/dev/null)
+    fi
+
+    local changed_files
+    changed_files=$(cd "$fixture_dir" && {
+        git diff --name-only "$baseline_ref" HEAD 2>/dev/null
+        git diff --name-only HEAD 2>/dev/null
+        git ls-files --others --exclude-standard 2>/dev/null
+    } | sort -u)
+
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        if [[ -f "$fixture_dir/$file" ]]; then
+            mkdir -p "$(dirname "$candidate_dir/$file")"
+            cp "$fixture_dir/$file" "$candidate_dir/$file"
+        fi
+    done <<< "$changed_files"
+
+    echo "$candidate_dir"
+}
+
+# ---------------------------------------------------------------------------
 # LLM-as-judge (T2 evaluation)
 # ---------------------------------------------------------------------------
 
