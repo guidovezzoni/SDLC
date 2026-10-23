@@ -790,6 +790,7 @@ run_judge() {
     local golden_dir="$2"
     local candidate_dir="$3"
     local result_file="$4"
+    local input_file="${5:-}"
 
     if [[ -z "$ANTHROPIC_API_KEY" ]]; then
         echo -e "  ${YELLOW}SKIP${RESET} T2 judge: ANTHROPIC_API_KEY not set"
@@ -803,8 +804,13 @@ run_judge() {
         return 2
     fi
 
-    local rubric golden_files candidate_files
+    local rubric golden_files candidate_files input_content
     rubric="$(cat "$rubric_file")"
+
+    input_content=""
+    if [[ -n "$input_file" && -f "$input_file" ]]; then
+        input_content="$(cat "$input_file")"
+    fi
 
     golden_files=""
     while IFS= read -r -d '' file; do
@@ -825,27 +831,50 @@ $(cat "$file")
     done < <(find "$candidate_dir" -type f -print0 | sort -z)
 
     local system_prompt
-    system_prompt="You are an evaluation judge for an AI coding assistant pipeline. You compare a candidate output against a golden reference using the provided rubric.
+    system_prompt="You are an evaluation judge for an AI coding assistant pipeline. You compare a candidate output against a golden reference using a per-criterion rubric.
 
-Return ONLY a JSON object with this structure:
+Your task:
+1. Read the rubric — it defines each criterion, its type (boolean, 1-5 scale, or checklist), and what constitutes each score level.
+2. Read the command input — this is what the command was given to work with.
+3. Read the golden reference artifacts — these are the high-quality expected outputs.
+4. Read the candidate artifacts — these are what the command actually produced.
+5. Score each criterion independently, comparing the candidate against the golden reference.
+
+Return ONLY a JSON object with this exact structure:
 {
   \"criteria\": {
     \"<criterion_name>\": {
       \"score\": <number>,
       \"max\": <number>,
-      \"rationale\": \"<one sentence explanation>\"
+      \"rationale\": \"<one to two sentence explanation referencing specific evidence>\"
     }
-  }
+  },
+  \"summary\": \"<one sentence overall assessment>\"
 }
 
-Score each criterion independently. Be strict: the golden reference represents high-quality output, and the candidate should match or exceed it on each dimension."
+Scoring rules:
+- Be strict: the golden reference represents high-quality output produced by a successful pipeline run.
+- For boolean criteria: score 1 (true) or 0 (false).
+- For 1-5 scale criteria: use the rubric's score descriptions to calibrate.
+- For checklist criteria: count items that meet the criterion.
+- Every rationale must cite specific artifacts or content, not just restate the criterion.
+- If the candidate directory is empty or has no meaningful artifacts, score all criteria at their minimum."
+
+    local input_section=""
+    if [[ -n "$input_content" ]]; then
+        input_section="## Command Input (what the command was given)
+
+${input_content}
+
+"
+    fi
 
     local user_prompt
     user_prompt="## Rubric
 
 ${rubric}
 
-## Golden Reference Artifacts
+${input_section}## Golden Reference Artifacts
 
 ${golden_files}
 
@@ -879,6 +908,9 @@ Score the candidate against the golden reference using the rubric above. Return 
 
     if [[ "$http_code" != "200" ]]; then
         echo -e "  ${RED}ERROR${RESET} T2 judge API call failed (HTTP $http_code)"
+        local error_msg
+        error_msg=$(echo "$body" | jq -r '.error.message // empty' 2>/dev/null)
+        [[ -n "$error_msg" ]] && echo -e "  ${DIM}$error_msg${RESET}"
         echo "{\"error\": true, \"http_code\": $http_code, \"body\": $(echo "$body" | jq -Rs .)}" > "$result_file"
         return 1
     fi
@@ -905,8 +937,17 @@ Score the candidate against the golden reference using the rubric above. Return 
         return 1
     fi
 
-    echo "$json_content" > "$result_file"
+    local usage_info
+    usage_info=$(echo "$body" | jq -c '{input_tokens: .usage.input_tokens, output_tokens: .usage.output_tokens}' 2>/dev/null)
+
+    echo "$json_content" | jq --argjson usage "$usage_info" '. + {judge_usage: $usage}' > "$result_file" 2>/dev/null \
+        || echo "$json_content" > "$result_file"
+
     echo -e "  ${GREEN}OK${RESET} T2 judge scores written to $result_file"
+    local input_tokens output_tokens
+    input_tokens=$(echo "$usage_info" | jq -r '.input_tokens // "?"' 2>/dev/null)
+    output_tokens=$(echo "$usage_info" | jq -r '.output_tokens // "?"' 2>/dev/null)
+    echo -e "  ${DIM}Judge tokens: ${input_tokens} in / ${output_tokens} out${RESET}"
     return 0
 }
 

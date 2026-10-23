@@ -61,15 +61,35 @@ Runs SDLC commands through Claude Code (or another tool) against controlled fixt
 | `sdlc_verify_story` | `./run_evals.sh verify_story` | Moderate (multiple sub-agents) |
 | `sdlc_exp_four_in_one` | `./run_evals.sh exp_four_in_one` | Low (git safety only) |
 | `sdlc_exp_vibe_a_story` | `./run_evals.sh exp_vibe_a_story` | Low–Moderate (git safety) |
-| `sdlc_implement_change` | No execution evals yet (work in progress) | — |
+| `sdlc_implement_change` | `./run_evals.sh implement_change` | High (Opus + Android SDK) |
 
 Run all with no filter if you touched shared infrastructure (e.g. `eval_helpers.sh`, guidelines files referenced by multiple commands).
 
 ---
 
+### `run_judge_only.sh` — T2 judge without re-running commands (1 API call per command)
+
+Runs just the LLM-as-judge evaluation against the golden reference, without the expensive command execution. Useful for re-evaluating saved candidate artifacts, sanity-checking the judge, or testing with a different judge model.
+
+```bash
+# Self-check: score the golden reference against itself (expect near-perfect)
+ANTHROPIC_API_KEY=sk-... EVAL_JUDGE_MODEL=claude-sonnet-5-5 \
+  ./docs/sdlc/evals/run_judge_only.sh --self-check all
+
+# Re-judge saved candidate artifacts from a previous run
+./docs/sdlc/evals/run_judge_only.sh open_story results/open_story_golden_quality_candidate
+
+# Judge from a fixture directory (collects changed files from baseline)
+./docs/sdlc/evals/run_judge_only.sh --from-fixture /tmp/sdlc_eval_golden_open_story_XXXX open_story
+```
+
+**When to use:** After changing a rubric, or to compare judge scores across different judge models without re-running the pipeline.
+
+---
+
 ### `compare_results.sh` — Regression comparison (no API calls)
 
-Diffs two aggregate JSON result files and reports regressions (PASS to FAIL), improvements (FAIL to PASS), and new/removed scenarios.
+Diffs two aggregate JSON result files and reports regressions (PASS to FAIL), improvements (FAIL to PASS), new/removed scenarios, per-criterion T2 score diffs, and timing changes.
 
 ```bash
 # Compare before/after a command change
@@ -92,7 +112,7 @@ Diffs two aggregate JSON result files and reports regressions (PASS to FAIL), im
 3. **Compare before/after** when modifying commands: save results with `--output` before changes, run again after, then use `compare_results.sh` to identify regressions.
 4. **Cross-tool comparison** when evaluating a new tool: run the same scenarios with `--tool claude` and `--tool opencode`, then compare with `--tool-diff`.
 
-Note: `sdlc_implement_change` does not have execution evals yet — it is only covered by static guardrails (`check_guardrails.sh`).
+Note: `sdlc_implement_change` has a golden quality scenario but requires an Android SDK environment. The T2 judge evaluation works without the SDK.
 
 ---
 
@@ -213,9 +233,46 @@ Scenarios extend the base with `create_sample_story_new()`, `create_sample_story
 
 All Phase 3 scenarios use `run_eval_with_args()` which supports `$ARGUMENTS` substitution and `--max-turns` to control cost.
 
-### Deferred
+### Golden Reference Quality Scenarios (T1 + T2)
 
-`sdlc_implement_change` evals require a full openspec change with task artifacts and are the most rate-limit-heavy. To be added when the first 3 commands' evals are stable.
+These scenarios test the **happy path quality** — did the command produce good output? They use a real venice project snapshot as the golden reference, extracted from a successful pipeline run.
+
+| Scenario | Command | What it tests | Requirements |
+|----------|---------|---------------|-------------|
+| `open_story_golden_quality` | `sdlc_open_story` | Story refinement quality, 12 sections, content preservation | Claude CLI |
+| `propose_change_golden_quality` | `sdlc_propose_change` | Proposal, design, BDD tasks, spec quality | Claude CLI |
+| `implement_change_golden_quality` | `sdlc_implement_change` | Task completion, code quality, test quality | Claude CLI + Android SDK |
+| `verify_story_golden_quality` | `sdlc_verify_story` | Gate coverage, lifecycle operations, report quality | Claude CLI + Android SDK |
+
+Each scenario runs two evaluation tiers:
+
+**T1: Structural assertions (free, deterministic)** — file existence, section presence, side effects, content preservation. Same technology as existing evals.
+
+**T2: LLM-as-judge (1 API call per command)** — per-criterion rubric scoring against the golden reference. Requires `ANTHROPIC_API_KEY` and `EVAL_JUDGE_MODEL` environment variables:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+export EVAL_JUDGE_MODEL="claude-sonnet-5-5"
+./docs/sdlc/evals/run_evals.sh open_story_golden_quality
+```
+
+If the env vars are not set, T2 is skipped and only T1 runs.
+
+**Rubrics** are in `docs/sdlc/evals/rubrics/` — one per command, each defining per-criterion scoring scales with explicit descriptions of what constitutes each score level.
+
+**Candidate artifacts** are saved to `results/<scenario>_candidate/` after each run, so you can re-run just the T2 judge without re-executing the command:
+
+```bash
+./docs/sdlc/evals/run_judge_only.sh open_story results/open_story_golden_quality_candidate
+```
+
+**Self-check** (sanity test for the judge and rubrics):
+
+```bash
+./docs/sdlc/evals/run_judge_only.sh --self-check all
+```
+
+This scores the golden reference against itself — expect near-perfect scores. Low scores indicate a rubric or judge prompt issue.
 
 ---
 
@@ -253,26 +310,37 @@ Same fixtures and assertions, different `--tool` flag:
 docs/sdlc/evals/
 ├── check_guardrails.sh                # Phase 1: static assertions
 ├── run_evals.sh                       # Phase 2 & 3: execution eval runner
+├── run_judge_only.sh                  # T2 judge-only runner (no command execution)
 ├── compare_results.sh                 # Phase 4: regression comparison
+├── extract_golden_reference.sh        # One-time: extract golden ref from venice repo
 ├── lib/
-│   └── eval_helpers.sh                # Shared fixture creators, assertion helpers
+│   └── eval_helpers.sh                # Shared fixture creators, assertion helpers, judge
+├── rubrics/
+│   ├── open_story_rubric.md           # Per-criterion rubric for open_story judge
+│   ├── propose_change_rubric.md
+│   ├── implement_change_rubric.md
+│   └── verify_story_rubric.md
+├── goldenreference/
+│   ├── README.md
+│   ├── open_story/                    # repo-snapshot.tar.gz, input.md, output/
+│   ├── propose_change/
+│   ├── implement_change/
+│   └── verify_story/
 ├── scenarios/
-│   ├── doctor_all_pass.sh
-│   ├── doctor_everything_broken.sh
-│   ├── doctor_missing_openspec_config.sh
-│   ├── doctor_missing_opsx_commands.sh
-│   ├── doctor_security_disabled.sh
-│   ├── project_doctor_all_pass.sh
-│   ├── project_doctor_low_coverage.sh
-│   ├── project_doctor_missing_detekt.sh
-│   ├── open_story_dirty_state.sh
-│   ├── open_story_not_on_main.sh
+│   ├── doctor_*.sh                    # Phase 2: doctor scenarios
+│   ├── project_doctor_*.sh            # Phase 2: project doctor scenarios
+│   ├── open_story_golden_quality.sh   # T1+T2: golden quality eval
+│   ├── open_story_dirty_state.sh      # Edge case: dirty working tree
+│   ├── open_story_not_on_main.sh      # Edge case: wrong branch
+│   ├── propose_change_golden_quality.sh
+│   ├── propose_change_surfaces_questions.sh
+│   ├── implement_change_golden_quality.sh
+│   ├── verify_story_golden_quality.sh
 │   ├── verify_story_precondition_fail.sh
 │   ├── verify_story_blocks_on_gate_failure.sh
-│   ├── propose_change_surfaces_questions.sh
 │   ├── exp_four_in_one_dirty_state.sh
 │   └── exp_vibe_a_story_dirty_state.sh
-└── results/                           # Gitignored eval results
+└── results/                           # Gitignored: JSON results, output logs, candidate dirs
     └── .gitkeep
 ```
 
@@ -283,6 +351,10 @@ docs/sdlc/evals/
 - `claude` CLI installed and authenticated (or the tool specified via `--tool`)
 - `openspec` CLI installed (for doctor openspec CLI check)
 - `fastlane`, `bundle` installed (for project_doctor CLI checks)
+- `jq` installed (for T2 judge result parsing and comparison)
+- `ANTHROPIC_API_KEY` set (for T2 LLM-as-judge; T1 structural assertions run without it)
+- `EVAL_JUDGE_MODEL` set (for T2; recommended: a model different from the one being evaluated)
+- Android SDK (for `implement_change` and `verify_story` T3 functional verification)
 
 ---
 

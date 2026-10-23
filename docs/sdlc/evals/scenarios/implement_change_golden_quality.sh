@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/../lib/eval_helpers.sh"
 
 SCENARIO_NAME="implement_change_golden_quality"
 GOLDEN_OUTPUT=$(get_golden_output_dir "implement_change")
+GOLDEN_INPUT=$(get_golden_input "implement_change")
 RUBRIC="$EVAL_ROOT/rubrics/implement_change_rubric.md"
 
 # --- Setup ---
@@ -129,7 +130,7 @@ echo -e "\n  ${BOLD}T2: LLM-as-judge${RESET}"
 CANDIDATE_DIR=$(collect_candidate_from_baseline "$FIXTURE_DIR")
 JUDGE_RESULT="$FIXTURE_DIR/judge_result.json"
 
-run_judge "$RUBRIC" "$GOLDEN_OUTPUT" "$CANDIDATE_DIR" "$JUDGE_RESULT" || true
+run_judge "$RUBRIC" "$GOLDEN_OUTPUT" "$CANDIDATE_DIR" "$JUDGE_RESULT" "$GOLDEN_INPUT" || true
 
 assert_judge_score "$JUDGE_RESULT" "task_completion" 20 "task_completion >= 20/29"
 assert_judge_score "$JUDGE_RESULT" "bdd_discipline" 3 "bdd_discipline >= 3/5"
@@ -137,7 +138,6 @@ assert_judge_score "$JUDGE_RESULT" "code_quality" 3 "code_quality >= 3/5"
 assert_judge_score "$JUDGE_RESULT" "test_quality" 3 "test_quality >= 3/5"
 
 # --- Report & Cleanup ---
-rm -rf "$CANDIDATE_DIR"
 report_scenario_result "$SCENARIO_NAME" || true
 RESULT=$ASSERTIONS_FAILED
 
@@ -150,7 +150,13 @@ if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/nul
     fi
 fi
 
+if [[ -n "${RESULTS_DIR:-}" && -d "$CANDIDATE_DIR" ]]; then
+    rm -rf "${RESULTS_DIR}/${SCENARIO_NAME}_candidate"
+    cp -r "$CANDIDATE_DIR" "${RESULTS_DIR}/${SCENARIO_NAME}_candidate"
+fi
+
 cp "$OUTPUT_FILE" "${RESULTS_DIR}/${SCENARIO_NAME}_output.txt" 2>/dev/null || true
+rm -rf "$CANDIDATE_DIR"
 rm -f "$OUTPUT_FILE"
 cleanup_fixture "$FIXTURE_DIR"
 exit $RESULT
