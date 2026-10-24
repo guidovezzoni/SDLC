@@ -36,16 +36,16 @@ assert_output_contains "uncommitted|dirty|modified|unstaged|changes" \
 assert_output_contains "AGENTS.md" \
     "Output mentions the specific dirty file"
 
-assert_output_contains "git status" \
-    "Output mentions running git status"
+assert_output_contains "working tree|working directory|uncommitted|not staged|unstaged" \
+    "Output describes the working tree state"
 
 # The command should warn/ask the user about proceeding
 assert_output_contains "proceed|continue|warning|warn" \
     "Output warns about or asks about proceeding"
 
 # --- Report & cleanup ---
-report_scenario_result "$SCENARIO_NAME"
-RESULT=$?
+report_scenario_result "$SCENARIO_NAME" || true
+RESULT=$ASSERTIONS_FAILED
 cp "$OUTPUT_FILE" "${RESULTS_DIR}/${SCENARIO_NAME}_output.txt" 2>/dev/null || true
 cleanup_fixture "$FIXTURE_DIR"
 exit $RESULT

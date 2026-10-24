@@ -922,12 +922,13 @@ _run_judge_cli() {
 
     local exit_code=0
     env -u ANTHROPIC_API_KEY "$judge_tool" \
-        -p "$(cat "$prompt_file")" \
-        --system-prompt "$(cat "$system_file")" \
+        -p - \
+        --system-prompt-file "$system_file" \
         --model "$EVAL_JUDGE_MODEL" \
         --output-format json \
         --no-session-persistence \
         --dangerously-skip-permissions \
+        < "$prompt_file" \
         > "$raw_output" 2>&1 || exit_code=$?
 
     rm -f "$prompt_file" "$system_file"

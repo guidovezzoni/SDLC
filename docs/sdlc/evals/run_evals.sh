@@ -75,6 +75,11 @@ while [[ $# -gt 0 ]]; do
             export EVAL_JUDGE_MODE
             shift 2
             ;;
+        --judge-model)
+            EVAL_JUDGE_MODEL="$2"
+            export EVAL_JUDGE_MODEL
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: $(basename "$0") [--tool <name>] [--model <model>] [--output <name>] [--judge-mode <mode>] [<filter>]"
             echo ""
@@ -82,8 +87,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --tool <name>        CLI tool to invoke (default: claude)"
             echo "  --model <model>      Orchestrator model (default: CLI default)"
             echo "  --output <name>      Name the run directory (default: <timestamp>_<tool>)"
-            echo "  --judge-mode <mode>  T2 judge backend: api (default, needs ANTHROPIC_API_KEY)"
-            echo "                       or subscription (uses claude CLI subscription)"
+            echo "  --judge-mode <mode>   T2 judge backend: api (default, needs ANTHROPIC_API_KEY)"
+            echo "                        or subscription (uses claude CLI subscription)"
+            echo "  --judge-model <model> Model for the T2 judge (required for T2 to run)"
             echo ""
             echo "Filters: doctor, project_doctor, open_story, propose_change,"
             echo "         verify_story, exp_four_in_one, exp_vibe_a_story,"

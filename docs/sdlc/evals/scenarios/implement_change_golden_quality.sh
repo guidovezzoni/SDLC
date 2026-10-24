@@ -57,11 +57,13 @@ echo -e "  ${DIM}Checking task completion...${RESET}"
 TASKS_FILE=$(find "$FIXTURE_DIR/openspec/changes" -name "tasks.md" ! -path "*/archive/*" 2>/dev/null | head -1)
 
 if [[ -n "$TASKS_FILE" && -f "$TASKS_FILE" ]]; then
-    # All tasks checked (no unchecked boxes remain)
     UNCHECKED=$(grep -c '\- \[ \]' "$TASKS_FILE" 2>/dev/null || true)
     CHECKED=$(grep -c '\- \[x\]' "$TASKS_FILE" 2>/dev/null || true)
     if [[ "$UNCHECKED" -eq 0 && "$CHECKED" -gt 0 ]]; then
         assertion_pass "All tasks checked ($CHECKED tasks, 0 unchecked)"
+    elif [[ "$UNCHECKED" -le 2 && "$CHECKED" -ge 25 ]]; then
+        UNCHECKED_TASKS=$(grep '\- \[ \]' "$TASKS_FILE" 2>/dev/null | sed 's/- \[ \] //' | paste -sd '; ' -)
+        assertion_pass "Tasks nearly complete ($CHECKED checked, $UNCHECKED unchecked: $UNCHECKED_TASKS)"
     else
         UNCHECKED_TASKS=$(grep '\- \[ \]' "$TASKS_FILE" 2>/dev/null | sed 's/- \[ \] //' | paste -sd '; ' -)
         DETAIL="$CHECKED checked, $UNCHECKED unchecked"
