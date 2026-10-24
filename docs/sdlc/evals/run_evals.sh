@@ -26,8 +26,10 @@
 #   - fastlane, bundle installed (for project_doctor CLI checks)
 #
 # Environment variables:
-#   EVAL_TOOL    CLI tool to use (default: claude, overridden by --tool)
-#   EVAL_MODEL   Orchestrator model (default: CLI default, overridden by --model)
+#   EVAL_TOOL         CLI tool to use (default: claude, overridden by --tool)
+#   EVAL_MODEL        Orchestrator model (default: CLI default, overridden by --model)
+#   EVAL_JUDGE_MODE   T2 judge backend: api (default) or subscription (overridden by --judge-mode)
+#   EVAL_JUDGE_MODEL  Model for the T2 judge (required for T2 to run)
 
 set -euo pipefail
 
@@ -68,13 +70,20 @@ while [[ $# -gt 0 ]]; do
             CUSTOM_OUTPUT="$2"
             shift 2
             ;;
+        --judge-mode)
+            EVAL_JUDGE_MODE="$2"
+            export EVAL_JUDGE_MODE
+            shift 2
+            ;;
         -h|--help)
-            echo "Usage: $(basename "$0") [--tool <name>] [--model <model>] [--output <name>] [<filter>]"
+            echo "Usage: $(basename "$0") [--tool <name>] [--model <model>] [--output <name>] [--judge-mode <mode>] [<filter>]"
             echo ""
             echo "Options:"
-            echo "  --tool <name>    CLI tool to invoke (default: claude)"
-            echo "  --model <model>  Orchestrator model (default: CLI default)"
-            echo "  --output <name>  Name the run directory (default: <timestamp>_<tool>)"
+            echo "  --tool <name>        CLI tool to invoke (default: claude)"
+            echo "  --model <model>      Orchestrator model (default: CLI default)"
+            echo "  --output <name>      Name the run directory (default: <timestamp>_<tool>)"
+            echo "  --judge-mode <mode>  T2 judge backend: api (default, needs ANTHROPIC_API_KEY)"
+            echo "                       or subscription (uses claude CLI subscription)"
             echo ""
             echo "Filters: doctor, project_doctor, open_story, propose_change,"
             echo "         verify_story, exp_four_in_one, exp_vibe_a_story,"

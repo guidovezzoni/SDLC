@@ -14,7 +14,7 @@ EVAL_TOOL="${EVAL_TOOL:-claude}"
 ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 EVAL_JUDGE_MODEL="${EVAL_JUDGE_MODEL:-}"
 EVAL_JUDGE_MAX_TOKENS="${EVAL_JUDGE_MAX_TOKENS:-4096}"
-EVAL_JUDGE_TOOL="${EVAL_JUDGE_TOOL:-claude}"
+EVAL_JUDGE_MODE="${EVAL_JUDGE_MODE:-api}"
 
 EVAL_START_TIME=""
 EVAL_END_TIME=""
@@ -888,10 +888,10 @@ ${candidate_files}
 
 Score the candidate against the golden reference using the rubric above. Return JSON only."
 
-    if [[ -n "$ANTHROPIC_API_KEY" ]]; then
-        _run_judge_api "$system_prompt" "$user_prompt" "$result_file"
-    else
+    if [[ "$EVAL_JUDGE_MODE" == "subscription" ]]; then
         _run_judge_cli "$system_prompt" "$user_prompt" "$result_file"
+    else
+        _run_judge_api "$system_prompt" "$user_prompt" "$result_file"
     fi
 }
 
@@ -900,10 +900,10 @@ _run_judge_cli() {
     local user_prompt="$2"
     local result_file="$3"
 
-    local judge_tool="${EVAL_JUDGE_TOOL:-claude}"
+    local judge_tool="claude"
     if ! command -v "$judge_tool" > /dev/null 2>&1; then
-        echo -e "  ${RED}ERROR${RESET} T2 judge: '$judge_tool' not found and ANTHROPIC_API_KEY not set"
-        echo '{"skipped": true, "reason": "no judge tool available"}' > "$result_file"
+        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: '$judge_tool' CLI not found (EVAL_JUDGE_MODE=subscription)"
+        echo '{"skipped": true, "reason": "claude CLI not found"}' > "$result_file"
         return 2
     fi
 
@@ -960,6 +960,12 @@ _run_judge_api() {
     local system_prompt="$1"
     local user_prompt="$2"
     local result_file="$3"
+
+    if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: ANTHROPIC_API_KEY not set (EVAL_JUDGE_MODE=api)"
+        echo '{"skipped": true, "reason": "ANTHROPIC_API_KEY not set"}' > "$result_file"
+        return 2
+    fi
 
     local escaped_system escaped_user
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
