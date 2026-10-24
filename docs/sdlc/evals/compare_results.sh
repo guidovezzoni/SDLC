@@ -241,10 +241,21 @@ fi
 # Output report
 # ---------------------------------------------------------------------------
 
+BASELINE_META=""
+CANDIDATE_META=""
+if $HAS_JQ; then
+    b_tool=$(jq -r '.[0].tool // empty' "$BASELINE" 2>/dev/null)
+    b_model=$(jq -r '.[0].model // empty' "$BASELINE" 2>/dev/null)
+    c_tool=$(jq -r '.[0].tool // empty' "$CANDIDATE" 2>/dev/null)
+    c_model=$(jq -r '.[0].model // empty' "$CANDIDATE" 2>/dev/null)
+    [[ -n "$b_tool" || -n "$b_model" ]] && BASELINE_META=" (tool: ${b_tool:-?}, model: ${b_model:-default})"
+    [[ -n "$c_tool" || -n "$c_model" ]] && CANDIDATE_META=" (tool: ${c_tool:-?}, model: ${c_model:-default})"
+fi
+
 echo ""
 echo -e "${BOLD}SDLC Eval Comparison Report${RESET}"
-echo -e "${DIM}$LABEL_BASELINE: $BASELINE${RESET}"
-echo -e "${DIM}$LABEL_CANDIDATE: $CANDIDATE${RESET}"
+echo -e "${DIM}$LABEL_BASELINE: $BASELINE${BASELINE_META}${RESET}"
+echo -e "${DIM}$LABEL_CANDIDATE: $CANDIDATE${CANDIDATE_META}${RESET}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Summary counts

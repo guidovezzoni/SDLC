@@ -27,6 +27,7 @@
 #
 # Environment variables:
 #   EVAL_TOOL    CLI tool to use (default: claude, overridden by --tool)
+#   EVAL_MODEL   Orchestrator model (default: CLI default, overridden by --model)
 
 set -euo pipefail
 
@@ -35,6 +36,7 @@ SCENARIOS_DIR="$SCRIPT_DIR/scenarios"
 BASE_RESULTS="$SCRIPT_DIR/results"
 
 export EVAL_TOOL="${EVAL_TOOL:-claude}"
+export EVAL_MODEL="${EVAL_MODEL:-}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -57,15 +59,21 @@ while [[ $# -gt 0 ]]; do
             export EVAL_TOOL
             shift 2
             ;;
+        --model)
+            EVAL_MODEL="$2"
+            export EVAL_MODEL
+            shift 2
+            ;;
         --output)
             CUSTOM_OUTPUT="$2"
             shift 2
             ;;
         -h|--help)
-            echo "Usage: $(basename "$0") [--tool <name>] [--output <name>] [<filter>]"
+            echo "Usage: $(basename "$0") [--tool <name>] [--model <model>] [--output <name>] [<filter>]"
             echo ""
             echo "Options:"
             echo "  --tool <name>    CLI tool to invoke (default: claude)"
+            echo "  --model <model>  Orchestrator model (default: CLI default)"
             echo "  --output <name>  Name the run directory (default: <timestamp>_<tool>)"
             echo ""
             echo "Filters: doctor, project_doctor, open_story, propose_change,"
@@ -117,6 +125,7 @@ FAILED_NAMES=()
 echo ""
 echo -e "${BOLD}SDLC Execution Evals (Phase 2 & 3)${RESET}"
 echo -e "${DIM}Tool: $EVAL_TOOL${RESET}"
+echo -e "${DIM}Model: ${EVAL_MODEL:-default}${RESET}"
 echo -e "${DIM}Filter: ${FILTER:-all}${RESET}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 

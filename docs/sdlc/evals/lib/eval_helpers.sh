@@ -676,6 +676,7 @@ run_eval() {
             --dangerously-skip-permissions \
             --no-session-persistence \
             --output-format json \
+            ${EVAL_MODEL:+--model "$EVAL_MODEL"} \
         ) > "$json_output" 2>&1 || exit_code=$?
         extract_model_usage "$json_output" "$output_file"
         rm -f "$json_output"
@@ -685,6 +686,7 @@ run_eval() {
             --dangerously-skip-permissions \
             --no-session-persistence \
             --output-format text \
+            ${EVAL_MODEL:+--model "$EVAL_MODEL"} \
         ) > "$output_file" 2>&1 || exit_code=$?
     fi
 
@@ -723,6 +725,10 @@ run_eval_with_args() {
 
     if [[ -n "$max_turns" ]]; then
         tool_args+=(--max-turns "$max_turns")
+    fi
+
+    if [[ -n "${EVAL_MODEL:-}" ]]; then
+        tool_args+=(--model "$EVAL_MODEL")
     fi
 
     EVAL_START_TIME=$(date -Iseconds)
@@ -1234,6 +1240,7 @@ TIMING_EOF
   "total": $ASSERTIONS_TOTAL,
   "result": "$([ "$ASSERTIONS_FAILED" -eq 0 ] && echo "PASS" || echo "FAIL")",
   "tool": "$EVAL_TOOL",
+  "model": "${EVAL_MODEL:-default}",
   "timestamp": "$(date -Iseconds)"${timing_json}${model_json}
 }
 RESULT_EOF
