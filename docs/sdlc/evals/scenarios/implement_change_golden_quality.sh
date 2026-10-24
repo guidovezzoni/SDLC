@@ -63,7 +63,14 @@ if [[ -n "$TASKS_FILE" && -f "$TASKS_FILE" ]]; then
     if [[ "$UNCHECKED" -eq 0 && "$CHECKED" -gt 0 ]]; then
         assertion_pass "All tasks checked ($CHECKED tasks, 0 unchecked)"
     else
-        assertion_fail "All tasks checked" "$CHECKED checked, $UNCHECKED unchecked — likely no Android device connected"
+        UNCHECKED_TASKS=$(grep '\- \[ \]' "$TASKS_FILE" 2>/dev/null | sed 's/- \[ \] //' | paste -sd '; ' -)
+        DETAIL="$CHECKED checked, $UNCHECKED unchecked"
+        if adb devices 2>/dev/null | grep -q 'device$'; then
+            DETAIL="$DETAIL — device connected, unchecked: $UNCHECKED_TASKS"
+        else
+            DETAIL="$DETAIL — no Android device connected, unchecked: $UNCHECKED_TASKS"
+        fi
+        assertion_fail "All tasks checked" "$DETAIL"
     fi
 else
     assertion_fail "tasks.md found" "not found under openspec/changes/"
