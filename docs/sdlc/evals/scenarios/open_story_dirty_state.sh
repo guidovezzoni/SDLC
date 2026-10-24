@@ -46,5 +46,6 @@ assert_output_contains "proceed|continue|warning|warn" \
 # --- Report & cleanup ---
 report_scenario_result "$SCENARIO_NAME"
 RESULT=$?
+cp "$OUTPUT_FILE" "${RESULTS_DIR}/${SCENARIO_NAME}_output.txt" 2>/dev/null || true
 cleanup_fixture "$FIXTURE_DIR"
 exit $RESULT

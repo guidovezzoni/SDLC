@@ -14,6 +14,7 @@ EVAL_TOOL="${EVAL_TOOL:-claude}"
 ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 EVAL_JUDGE_MODEL="${EVAL_JUDGE_MODEL:-}"
 EVAL_JUDGE_MAX_TOKENS="${EVAL_JUDGE_MAX_TOKENS:-4096}"
+EVAL_JUDGE_TOOL="${EVAL_JUDGE_TOOL:-claude}"
 
 EVAL_START_TIME=""
 EVAL_END_TIME=""
@@ -66,7 +67,10 @@ add_google_services_stub() {
     cat > "$app_dir/google-services.json" << 'GSJSON'
 {
   "project_info": {"project_number":"0","project_id":"eval-stub","storage_bucket":""},
-  "client": [{"client_info":{"mobilesdk_app_id":"1:0:android:eval","android_client_info":{"package_name":"com.guidovezzoni.venice"}},"api_key":[{"current_key":"stub"}]}],
+  "client": [
+    {"client_info":{"mobilesdk_app_id":"1:0:android:eval","android_client_info":{"package_name":"com.guidovezzoni.venice"}},"api_key":[{"current_key":"stub"}]},
+    {"client_info":{"mobilesdk_app_id":"1:0:android:eval-debug","android_client_info":{"package_name":"com.guidovezzoni.venice.debug"}},"api_key":[{"current_key":"stub"}]}
+  ],
   "configuration_version": "1"
 }
 GSJSON
@@ -798,12 +802,6 @@ run_judge() {
     local result_file="$4"
     local input_file="${5:-}"
 
-    if [[ -z "$ANTHROPIC_API_KEY" ]]; then
-        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: ANTHROPIC_API_KEY not set"
-        echo '{"skipped": true, "reason": "ANTHROPIC_API_KEY not set"}' > "$result_file"
-        return 2
-    fi
-
     if [[ -z "$EVAL_JUDGE_MODEL" ]]; then
         echo -e "  ${YELLOW}SKIP${RESET} T2 judge: EVAL_JUDGE_MODEL not set"
         echo '{"skipped": true, "reason": "EVAL_JUDGE_MODEL not set"}' > "$result_file"
@@ -890,6 +888,79 @@ ${candidate_files}
 
 Score the candidate against the golden reference using the rubric above. Return JSON only."
 
+    if [[ -n "$ANTHROPIC_API_KEY" ]]; then
+        _run_judge_api "$system_prompt" "$user_prompt" "$result_file"
+    else
+        _run_judge_cli "$system_prompt" "$user_prompt" "$result_file"
+    fi
+}
+
+_run_judge_cli() {
+    local system_prompt="$1"
+    local user_prompt="$2"
+    local result_file="$3"
+
+    local judge_tool="${EVAL_JUDGE_TOOL:-claude}"
+    if ! command -v "$judge_tool" > /dev/null 2>&1; then
+        echo -e "  ${RED}ERROR${RESET} T2 judge: '$judge_tool' not found and ANTHROPIC_API_KEY not set"
+        echo '{"skipped": true, "reason": "no judge tool available"}' > "$result_file"
+        return 2
+    fi
+
+    progress "Calling judge via $judge_tool CLI (model: $EVAL_JUDGE_MODEL, subscription)..."
+
+    local prompt_file
+    prompt_file=$(mktemp "${TMPDIR:-/tmp}/eval_judge_prompt.XXXXXX")
+    printf '%s' "$user_prompt" > "$prompt_file"
+
+    local system_file
+    system_file=$(mktemp "${TMPDIR:-/tmp}/eval_judge_system.XXXXXX")
+    printf '%s' "$system_prompt" > "$system_file"
+
+    local raw_output
+    raw_output=$(mktemp "${TMPDIR:-/tmp}/eval_judge_raw.XXXXXX")
+
+    local exit_code=0
+    env -u ANTHROPIC_API_KEY "$judge_tool" \
+        -p "$(cat "$prompt_file")" \
+        --system-prompt "$(cat "$system_file")" \
+        --model "$EVAL_JUDGE_MODEL" \
+        --output-format json \
+        --no-session-persistence \
+        --dangerously-skip-permissions \
+        > "$raw_output" 2>&1 || exit_code=$?
+
+    rm -f "$prompt_file" "$system_file"
+
+    if [[ "$exit_code" -ne 0 ]]; then
+        echo -e "  ${RED}ERROR${RESET} T2 judge CLI exited with code $exit_code"
+        echo "{\"error\": true, \"exit_code\": $exit_code, \"output\": $(head -20 "$raw_output" | jq -Rs .)}" > "$result_file"
+        rm -f "$raw_output"
+        return 1
+    fi
+
+    local text_content
+    text_content=$(jq -r '.result // empty' "$raw_output" 2>/dev/null)
+    if [[ -z "$text_content" ]]; then
+        text_content=$(cat "$raw_output")
+    fi
+
+    local usage_info='{"input_tokens": "?", "output_tokens": "?"}'
+    local input_tokens output_tokens
+    input_tokens=$(jq -r '.usage.input_tokens // "?"' "$raw_output" 2>/dev/null)
+    output_tokens=$(jq -r '.usage.output_tokens // "?"' "$raw_output" 2>/dev/null)
+    usage_info="{\"input_tokens\": $input_tokens, \"output_tokens\": $output_tokens}"
+
+    rm -f "$raw_output"
+
+    _parse_judge_response "$text_content" "$usage_info" "$result_file"
+}
+
+_run_judge_api() {
+    local system_prompt="$1"
+    local user_prompt="$2"
+    local result_file="$3"
+
     local escaped_system escaped_user
     escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
     escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
@@ -932,6 +1003,17 @@ Score the candidate against the golden reference using the rubric above. Return 
         return 1
     fi
 
+    local usage_info
+    usage_info=$(echo "$body" | jq -c '{input_tokens: .usage.input_tokens, output_tokens: .usage.output_tokens}' 2>/dev/null)
+
+    _parse_judge_response "$text_content" "$usage_info" "$result_file"
+}
+
+_parse_judge_response() {
+    local text_content="$1"
+    local usage_info="$2"
+    local result_file="$3"
+
     local json_content=""
 
     if echo "$text_content" | jq . > /dev/null 2>&1; then
@@ -944,9 +1026,6 @@ Score the candidate against the golden reference using the rubric above. Return 
         echo "{\"error\": true, \"reason\": \"invalid JSON\", \"raw\": $(echo "$text_content" | jq -Rs .)}" > "$result_file"
         return 1
     fi
-
-    local usage_info
-    usage_info=$(echo "$body" | jq -c '{input_tokens: .usage.input_tokens, output_tokens: .usage.output_tokens}' 2>/dev/null)
 
     echo "$json_content" | jq --argjson usage "$usage_info" '. + {judge_usage: $usage}' > "$result_file" 2>/dev/null \
         || echo "$json_content" > "$result_file"
