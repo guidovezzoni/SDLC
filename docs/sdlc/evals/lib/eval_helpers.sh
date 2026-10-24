@@ -671,7 +671,7 @@ run_eval() {
     if [[ "$EVAL_TOOL" == "claude" ]]; then
         local json_output
         json_output=$(mktemp "/tmp/sdlc_eval_json_XXXXXX")
-        (cd "$fixture_dir" && "$EVAL_TOOL" \
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" \
             -p "$prompt" \
             --dangerously-skip-permissions \
             --no-session-persistence \
@@ -680,7 +680,7 @@ run_eval() {
         extract_model_usage "$json_output" "$output_file"
         rm -f "$json_output"
     else
-        (cd "$fixture_dir" && "$EVAL_TOOL" \
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" \
             -p "$prompt" \
             --dangerously-skip-permissions \
             --no-session-persistence \
@@ -733,11 +733,11 @@ run_eval_with_args() {
     if [[ "$output_format" == "json" ]]; then
         local json_output
         json_output=$(mktemp "/tmp/sdlc_eval_json_XXXXXX")
-        (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$json_output" 2>&1 || exit_code=$?
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" "${tool_args[@]}") > "$json_output" 2>&1 || exit_code=$?
         extract_model_usage "$json_output" "$output_file"
         rm -f "$json_output"
     else
-        (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
     fi
 
     EVAL_END_TIME=$(date -Iseconds)
