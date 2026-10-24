@@ -625,6 +625,10 @@ Extend `compare_results.sh` to handle:
 - Score-based comparison (not just binary pass/fail)
 - Per-criterion score diffs between runs
 - Timing comparison (wall-clock, tokens)
+- **Artifact diff tool** (`diff_candidate.sh <command>`): diffs the candidate output directory
+  against `goldenreference/<command>/output/` and produces a structured report — file presence,
+  line counts, section headings diff, and a content summary. Useful for understanding *what*
+  changed beyond the T2 scores.
 
 ---
 

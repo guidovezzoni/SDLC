@@ -151,7 +151,6 @@ if [[ -n "${RESULTS_DIR:-}" && -f "$JUDGE_RESULT" ]] && command -v jq > /dev/nul
 fi
 
 if [[ -n "${RESULTS_DIR:-}" && -d "$CANDIDATE_DIR" ]]; then
-    rm -rf "${RESULTS_DIR}/${SCENARIO_NAME}_candidate"
     cp -r "$CANDIDATE_DIR" "${RESULTS_DIR}/${SCENARIO_NAME}_candidate"
 fi
 

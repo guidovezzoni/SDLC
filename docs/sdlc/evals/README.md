@@ -46,8 +46,8 @@ Runs SDLC commands through Claude Code (or another tool) against controlled fixt
 # Use a different AI coding tool
 ./docs/sdlc/evals/run_evals.sh --tool opencode
 
-# Save aggregate results to a specific path (for comparison)
-./docs/sdlc/evals/run_evals.sh --output results/baseline.json
+# Name the run directory (for comparison)
+./docs/sdlc/evals/run_evals.sh --output my_baseline
 ```
 
 **When to use:** Run evals for the specific command you modified:
@@ -91,12 +91,20 @@ ANTHROPIC_API_KEY=sk-... EVAL_JUDGE_MODEL=claude-sonnet-5-5 \
 
 Diffs two aggregate JSON result files and reports regressions (PASS to FAIL), improvements (FAIL to PASS), new/removed scenarios, per-criterion T2 score diffs, and timing changes.
 
+Arguments can be a run directory name, `latest`, or a full path to an aggregate JSON file:
+
 ```bash
-# Compare before/after a command change
-./docs/sdlc/evals/compare_results.sh results/baseline.json results/candidate.json
+# Compare two named runs
+./docs/sdlc/evals/compare_results.sh my_baseline latest
+
+# Compare by timestamp
+./docs/sdlc/evals/compare_results.sh 2026-10-23T191644_claude 2026-10-24T103012_opencode
+
+# Full paths still work
+./docs/sdlc/evals/compare_results.sh results/runs/my_baseline/aggregate.json results/runs/latest/aggregate.json
 
 # Compare across tools (labels columns by tool name)
-./docs/sdlc/evals/compare_results.sh --tool-diff results/claude.json results/opencode.json
+./docs/sdlc/evals/compare_results.sh --tool-diff claude_run opencode_run
 ```
 
 **Exit codes:** `0` = no regressions, `1` = regressions detected, `2` = usage error.
@@ -109,7 +117,7 @@ Diffs two aggregate JSON result files and reports regressions (PASS to FAIL), im
 
 1. **Always run `check_guardrails.sh`** before committing changes to command files — it's free, instant, and checks all 6 commands.
 2. **Run execution evals for the command you modified** — see the table above for the correct filter and expected cost.
-3. **Compare before/after** when modifying commands: save results with `--output` before changes, run again after, then use `compare_results.sh` to identify regressions.
+3. **Compare before/after** when modifying commands: name the baseline run with `--output`, run again after changes, then use `compare_results.sh` to identify regressions.
 4. **Cross-tool comparison** when evaluating a new tool: run the same scenarios with `--tool claude` and `--tool opencode`, then compare with `--tool-diff`.
 
 Note: `sdlc_implement_change` has a golden quality scenario but requires an Android SDK environment. The T2 judge evaluation works without the SDK.
@@ -260,10 +268,10 @@ If the env vars are not set, T2 is skipped and only T1 runs.
 
 **Rubrics** are in `docs/sdlc/evals/rubrics/` — one per command, each defining per-criterion scoring scales with explicit descriptions of what constitutes each score level.
 
-**Candidate artifacts** are saved to `results/<scenario>_candidate/` after each run, so you can re-run just the T2 judge without re-executing the command:
+**Candidate artifacts** are saved to `results/runs/<run>/<scenario>_candidate/` after each run, so you can re-run just the T2 judge without re-executing the command:
 
 ```bash
-./docs/sdlc/evals/run_judge_only.sh open_story results/open_story_golden_quality_candidate
+./docs/sdlc/evals/run_judge_only.sh open_story results/runs/latest/open_story_golden_quality_candidate
 ```
 
 **Self-check** (sanity test for the judge and rubrics):
@@ -280,14 +288,14 @@ This scores the golden reference against itself — expect near-perfect scores. 
 
 ### Regression comparison
 
-Each eval run outputs a JSON results file per scenario (scenario name, pass/fail, tool, timestamp), aggregated into a single file. The comparison script diffs two aggregate files and classifies each scenario as: regression, improvement, new, removed, or unchanged.
+Each eval run creates a timestamped directory under `results/runs/` (e.g. `results/runs/2026-10-23T191644_claude/`) containing per-scenario JSON results, candidate artifacts, output logs, and an aggregate file. A `latest` symlink always points to the most recent run. Use `--output <name>` to give a run a memorable name instead of the auto-generated timestamp.
 
 **Workflow:**
 ```bash
-./docs/sdlc/evals/run_evals.sh --output results/baseline.json
+./docs/sdlc/evals/run_evals.sh --output baseline
 # ... make changes to commands ...
-./docs/sdlc/evals/run_evals.sh --output results/candidate.json
-./docs/sdlc/evals/compare_results.sh results/baseline.json results/candidate.json
+./docs/sdlc/evals/run_evals.sh --output candidate
+./docs/sdlc/evals/compare_results.sh baseline candidate
 ```
 
 ### Cross-tool testing
@@ -297,9 +305,9 @@ Same fixtures and assertions, different `--tool` flag:
 - `--tool opencode`: runs via OpenCode's equivalent CLI
 
 ```bash
-./docs/sdlc/evals/run_evals.sh --tool claude --output results/claude.json
-./docs/sdlc/evals/run_evals.sh --tool opencode --output results/opencode.json
-./docs/sdlc/evals/compare_results.sh --tool-diff results/claude.json results/opencode.json
+./docs/sdlc/evals/run_evals.sh --tool claude --output claude_run
+./docs/sdlc/evals/run_evals.sh --tool opencode --output opencode_run
+./docs/sdlc/evals/compare_results.sh --tool-diff claude_run opencode_run
 ```
 
 ---
@@ -340,7 +348,15 @@ docs/sdlc/evals/
 │   ├── verify_story_blocks_on_gate_failure.sh
 │   ├── exp_four_in_one_dirty_state.sh
 │   └── exp_vibe_a_story_dirty_state.sh
-└── results/                           # Gitignored: JSON results, output logs, candidate dirs
+└── results/                           # Gitignored run outputs
+    ├── runs/                          # Each run gets a timestamped directory
+    │   ├── 2026-10-23T191644_claude/  # Auto-named: <timestamp>_<tool>
+    │   │   ├── aggregate.json
+    │   │   ├── <scenario>.json
+    │   │   ├── <scenario>_candidate/
+    │   │   └── <scenario>_output.txt
+    │   ├── my_baseline/               # Custom-named via --output
+    │   └── latest -> my_baseline/     # Symlink to most recent run
     └── .gitkeep
 ```
 
@@ -363,4 +379,4 @@ docs/sdlc/evals/
 - **Phase 1:** Run `./docs/sdlc/evals/check_guardrails.sh` — all assertions pass. Intentionally remove a guardrail phrase, re-run, verify it catches the regression.
 - **Phase 2:** Run `./docs/sdlc/evals/run_evals.sh phase2` — all doctor scenarios pass. Intentionally break a fixture (remove a file that should exist) — verify the eval catches the changed behaviour.
 - **Phase 3:** Run `./docs/sdlc/evals/run_evals.sh phase3` — all Phase 3 scenarios pass. Run individual commands selectively: `./docs/sdlc/evals/run_evals.sh open_story` or a single scenario: `./docs/sdlc/evals/run_evals.sh open_story_dirty_state`.
-- **Phase 4:** Run with `--output /tmp/before.json`, make a change, run again with `--output /tmp/after.json`, then `./docs/sdlc/evals/compare_results.sh /tmp/before.json /tmp/after.json` — verify regressions are correctly identified.
+- **Phase 4:** Run with `--output before`, make a change, run again with `--output after`, then `./docs/sdlc/evals/compare_results.sh before after` — verify regressions are correctly identified.

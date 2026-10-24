@@ -27,18 +27,40 @@ RESET='\033[0m'
 # Usage
 # ---------------------------------------------------------------------------
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNS_DIR="$SCRIPT_DIR/results/runs"
+
 usage() {
-    echo "Usage: $(basename "$0") [--tool-diff] <baseline.json> <candidate.json>"
+    echo "Usage: $(basename "$0") [--tool-diff] <baseline> <candidate>"
     echo ""
     echo "Compares two aggregate eval result files."
+    echo ""
+    echo "Arguments can be:"
+    echo "  - A full path to an aggregate JSON file"
+    echo "  - A run directory name (resolved under results/runs/<name>/aggregate.json)"
+    echo "  - 'latest' (resolved via the latest symlink)"
     echo ""
     echo "Options:"
     echo "  --tool-diff    Label columns as tools instead of baseline/candidate"
     echo ""
     echo "Examples:"
-    echo "  $(basename "$0") results/before.json results/after.json"
-    echo "  $(basename "$0") --tool-diff results/claude.json results/opencode.json"
+    echo "  $(basename "$0") my_baseline latest"
+    echo "  $(basename "$0") 2026-10-23T191644_claude 2026-10-24T103012_opencode"
+    echo "  $(basename "$0") results/runs/my_baseline/aggregate.json results/runs/latest/aggregate.json"
+    echo "  $(basename "$0") --tool-diff results/runs/claude_run/aggregate.json results/runs/opencode_run/aggregate.json"
     exit 2
+}
+
+resolve_aggregate() {
+    local arg="$1"
+    if [[ -f "$arg" ]]; then
+        echo "$arg"
+    elif [[ -f "$RUNS_DIR/$arg/aggregate.json" ]]; then
+        echo "$RUNS_DIR/$arg/aggregate.json"
+    else
+        echo -e "${RED}ERROR${RESET}: cannot resolve '$arg' — not a file and no $RUNS_DIR/$arg/aggregate.json found" >&2
+        return 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -73,19 +95,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$BASELINE" || -z "$CANDIDATE" ]]; then
-    echo "Error: two result files required."
+    echo "Error: two result references required."
     usage
 fi
 
-if [[ ! -f "$BASELINE" ]]; then
-    echo -e "${RED}ERROR${RESET}: baseline file not found: $BASELINE"
-    exit 2
-fi
-
-if [[ ! -f "$CANDIDATE" ]]; then
-    echo -e "${RED}ERROR${RESET}: candidate file not found: $CANDIDATE"
-    exit 2
-fi
+BASELINE=$(resolve_aggregate "$BASELINE") || exit 2
+CANDIDATE=$(resolve_aggregate "$CANDIDATE") || exit 2
 
 # ---------------------------------------------------------------------------
 # jq check (needed for score and timing comparison)
