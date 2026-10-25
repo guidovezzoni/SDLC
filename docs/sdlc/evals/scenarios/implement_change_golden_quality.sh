@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Scenario: implement_change golden-reference quality evaluation.
 # Fixture: full venice project repo after propose_change (workshop/02_sdlc_propose_change).
-# T1: structural assertions on task completion, file creation, and locale strings.
-# T2: LLM-as-judge scoring against the golden reference.
+# L2: structural assertions on task completion, file creation, and locale strings.
+# L3: LLM-as-judge scoring against the golden reference.
 #
 # Interactive: yes — the command may prompt about device connectivity and task issues.
 # Prerequisites: claude CLI (or $EVAL_TOOL), Android SDK, openspec CLI,
-#   ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for T2.
+#   ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for L3.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,8 +48,8 @@ run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "" || true
 echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 rm -f "$EVAL_CMD"
 
-# --- T1: Structural Assertions ---
-echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
+# --- L2: Structural Assertions ---
+echo -e "\n  ${BOLD}L2: Structural Assertions${RESET}"
 begin_assertions
 
 echo -e "  ${DIM}Checking task completion...${RESET}"
@@ -133,8 +133,8 @@ else
     assertion_fail "Report file exists"
 fi
 
-# --- T2: LLM-as-judge ---
-echo -e "\n  ${BOLD}T2: LLM-as-judge${RESET}"
+# --- L3: LLM-as-judge ---
+echo -e "\n  ${BOLD}L3: LLM-as-judge${RESET}"
 
 CANDIDATE_DIR=$(collect_candidate_from_baseline "$FIXTURE_DIR")
 JUDGE_RESULT="$FIXTURE_DIR/judge_result.json"

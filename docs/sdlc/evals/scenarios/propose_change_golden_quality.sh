@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Scenario: propose_change golden-reference quality evaluation.
 # Fixture: full venice project repo after open_story (workshop/01_sdlc_open_story).
-# T1: structural assertions on change artifacts and task structure.
-# T2: LLM-as-judge scoring against the golden reference.
+# L2: structural assertions on change artifacts and task structure.
+# L3: LLM-as-judge scoring against the golden reference.
 #
 # Interactive: yes — the command surfaces questions about the story to the user.
-# Prerequisites: claude CLI (or $EVAL_TOOL), ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for T2.
+# Prerequisites: claude CLI (or $EVAL_TOOL), ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for L3.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,8 +42,8 @@ run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "5.1.2" || true
 echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 rm -f "$EVAL_CMD"
 
-# --- T1: Structural Assertions ---
-echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
+# --- L2: Structural Assertions ---
+echo -e "\n  ${BOLD}L2: Structural Assertions${RESET}"
 begin_assertions
 
 echo -e "  ${DIM}Checking change directory...${RESET}"
@@ -116,8 +116,8 @@ else
     assertion_fail "Report updated with proposal section"
 fi
 
-# --- T2: LLM-as-judge ---
-echo -e "\n  ${BOLD}T2: LLM-as-judge${RESET}"
+# --- L3: LLM-as-judge ---
+echo -e "\n  ${BOLD}L3: LLM-as-judge${RESET}"
 
 CANDIDATE_DIR=$(collect_candidate_from_baseline "$FIXTURE_DIR")
 JUDGE_RESULT="$FIXTURE_DIR/judge_result.json"

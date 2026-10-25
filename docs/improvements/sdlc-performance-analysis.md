@@ -14,18 +14,20 @@ table because the table has no rows for them. They answer different questions:
 | Timing & cost capture (this doc) | "How long did it take and what did it cost?" |
 | Cross-run comparison (this doc) | "Did any of the above regress between runs?" |
 
-### Evaluation tiers
+### Evaluation layers
 
-The eval system uses three tiers, referenced as T1/T2/T3 throughout this document:
+The eval system uses independent layers, ordered by cost:
 
-| Tier | What | Cost | Catches |
-|------|------|------|---------|
-| **T1: Structural** | Deterministic assertions — file existence, section presence, side effects, content preservation (grep, `test -f`, `git diff`) | Free | Broken structure, missing artifacts, wrong side effects |
-| **T2: LLM-as-judge** | Per-criterion rubric scoring — an LLM judge compares candidate output against a golden reference on specific quality dimensions | Moderate (1 LLM call per command) | Semantic regressions — section exists but content is garbage, quality drift |
-| **T3: Functional** | Build and test verification — `./gradlew check`, `./gradlew test`, coverage threshold | Requires build environment | Compilation failures, test failures, coverage drops |
+| Layer | What | Cost | Catches |
+|-------|------|------|---------|
+| **L1: Guardrail** | Grep-based static checks on command files — no execution needed | Free | Broken guardrails, missing safeguards |
+| **L2: Structural** | Deterministic assertions — file existence, section presence, side effects, content preservation (grep, `test -f`, `git diff`) | Free | Broken structure, missing artifacts, wrong side effects |
+| **L3: Judge** | Per-criterion rubric scoring — an LLM judge compares candidate output against a golden reference on specific quality dimensions | Moderate (1 LLM call per command) | Semantic regressions — section exists but content is garbage, quality drift |
+| **L4: Functional** | Build and test verification — `./gradlew check`, `./gradlew test`, coverage threshold | Requires build environment | Compilation failures, test failures, coverage drops |
+| **L5: Behavioural** | Edge-case, gate-failure, and failure-handling scenarios | Moderate | Blocking-gate failures, error recovery, edge-case handling |
 
-T1 is what the existing static guardrails and execution evals already do. T2 and T3 are additions.
-T3 applies only to `implement_change` and `verify_story` (the commands that produce code).
+L2 is what the existing structural assertions already do. L3 and L4 are additions.
+L4 applies only to `implement_change` and `verify_story` (the commands that produce code).
 
 ### Regression axes
 
@@ -44,12 +46,12 @@ while the others stay fixed:
 
 ### Problem
 
-The eval analysis tracks output quality as binary assertions (`EX-OUTPUTQ`): a section exists or it
+The eval analysis tracks output quality as binary assertions (L2 structural): a section exists or it
 doesn't, a structure is present or it isn't. This catches breakage but not degradation. A refinement
 that contains all 12 required sections passes the binary check whether the sections are insightful or
 vacuous.
 
-T2 LLM-as-judge scoring addresses this with per-criterion rubrics that produce a 1–5 score (or
+L3 (judge) scoring addresses this with per-criterion rubrics that produce a 1–5 score (or
 boolean/checklist) with a rationale. This section catalogues every quality criterion, maps it to what
 it measures, and identifies where the analysis has no equivalent.
 
@@ -59,16 +61,16 @@ it measures, and identifies where the analysis has no equivalent.
 
 | Criterion | Type | What it measures | Analysis equivalent |
 |-----------|------|------------------|-------------------|
-| `section_completeness` | checklist (12) | Each of 12 sections present AND substantive | Partial — analysis #8 row 2 checks presence only |
-| `what_not_how` | 1–5 | Requirements-level language; no architecture/patterns/libraries prescribed | Partial — analysis #8 row 3 is binary |
+| `section_completeness` | checklist (12) | Each of 12 sections present AND substantive | Partial — L2 checks presence only |
+| `what_not_how` | 1–5 | Requirements-level language; no architecture/patterns/libraries prescribed | Partial — L2 is binary |
 | `acceptance_criteria_quality` | 1–5 | Criteria are testable, specific, and cover the story scope | None |
 | `analytics_section_quality` | 1–5 | Events follow naming conventions (snake_case, object_action), parameters bounded, product question stated, privacy floor respected | None |
-| `content_preservation` | boolean | Original story text preserved verbatim under `## Original user story` with headings downgraded | Partial — analysis #8 row 1 checks structure, not verbatim content |
+| `content_preservation` | boolean | Original story text preserved verbatim under `## Original user story` with headings downgraded | Partial — L2 checks structure, not verbatim content |
 | `overall_coherence` | 1–5 | Refined story reads as a coherent, self-consistent document suitable for propose_change | None |
 
 **Gap analysis:** 3 criteria have no analysis equivalent at all (`acceptance_criteria_quality`,
-`analytics_section_quality`, `overall_coherence`). The remaining 3 upgrade binary checks to graduated
-or deeper assertions. The analytics criterion is particularly valuable because the analytics section
+`analytics_section_quality`, `overall_coherence`). The remaining 3 upgrade L2 binary checks to graduated
+or deeper L3 assertions. The analytics criterion is particularly valuable because the analytics section
 is the most format-sensitive output — naming conventions, parameter bounding, and privacy rules are
 all checkable against `guidelines-analytics.md` but invisible to a structural grep.
 
@@ -100,8 +102,8 @@ is too coarse for a sub-agent to complete in one pass is the #1 cause of `implem
 
 **Gap analysis:** `code_quality` and `test_quality` have no equivalent in the analysis. These are
 the highest-consequence quality dimensions for `implement_change` — a command that produces compiling,
-test-passing code can still produce code that violates every project convention. T3 (build and test
-verification) catches correctness; T2 (LLM-as-judge) catches quality. Neither `code_quality` nor
+test-passing code can still produce code that violates every project convention. L4 (functional
+verification) catches correctness; L3 (judge) catches quality. Neither `code_quality` nor
 `test_quality` is detectable by grep or build tooling.
 
 #### `verify_story`
@@ -110,13 +112,13 @@ verification) catches correctness; T2 (LLM-as-judge) catches quality. Neither `c
 |-----------|------|------------------|-------------------|
 | `gate_coverage` | checklist | All expected gates evaluated and reported (OpenSpec verify, TODO scan, security, build, unit tests, coverage, test file coverage, preview coverage, on-device, Definition of Done) | Partial — analysis has individual gate rows but no "all gates present" check |
 | `report_completeness` | 1–5 | Report contains all expected sections with substantive content (not placeholder text) | Partial — analysis #16 row 2 checks data point count |
-| `lifecycle_correctness` | boolean | Story renamed, index updated, change archived, spec synced | Covered — analysis #12, #13, #14 cover these as individual EX-SIDEFX |
+| `lifecycle_correctness` | boolean | Story renamed, index updated, change archived, spec synced | Covered — analysis #12, #13, #14 cover these as individual L2 assertions |
 | `outcome_justified` | 1–5 | PASS/FAIL outcome justified by the gate results, not blindly passing | None |
 
 **Gap analysis:** `outcome_justified` has no analysis equivalent and is arguably the most important
 quality criterion for verify_story. A verification command that rubber-stamps PASS regardless of gate
 outcomes defeats the entire pipeline. The analysis checks that individual gates block on failure
-(`EX-BLOCKINGGT`), but never checks that the final outcome is logically derived from the gate results.
+(L5 behavioural), but never checks that the final outcome is logically derived from the gate results.
 
 ### Scoring dimensions not tied to a specific command
 
@@ -125,16 +127,16 @@ four commands:
 
 | Dimension | Description | Where it applies |
 |-----------|-------------|-----------------|
-| **Golden-reference fidelity** | How closely does the candidate match the known-good output in structure and substance? | All T2 criteria use comparison against golden reference |
-| **Rubric calibration** | Does the judge model score consistently across runs on the same input? | All T2 scores — variance in judge scoring is noise, not signal |
-| **Score-to-pass threshold** | At what score does a criterion represent acceptable quality? | All T2 criteria need a minimum threshold to be actionable |
+| **Golden-reference fidelity** | How closely does the candidate match the known-good output in structure and substance? | All L3 criteria use comparison against golden reference |
+| **Rubric calibration** | Does the judge model score consistently across runs on the same input? | All L3 scores — variance in judge scoring is noise, not signal |
+| **Score-to-pass threshold** | At what score does a criterion represent acceptable quality? | All L3 criteria need a minimum threshold to be actionable |
 
 These are meta-concerns about the scoring system itself, not about the commands. They matter for
 cross-run comparison (section 3) because score drift could be judge noise rather than real regression.
 
 ### Summary: quality scoring gap
 
-| Command | Total T2 criteria | Criteria with no analysis equivalent | Criteria upgrading binary to graded |
+| Command | Total L3 criteria | Criteria with no analysis equivalent | Criteria upgrading binary to graded |
 |---------|-------------------|--------------------------------------|-------------------------------------|
 | `open_story` | 6 | 3 | 3 |
 | `propose_change` | 6 | 3 | 3 |
@@ -286,7 +288,7 @@ explaining why (e.g., `"not_available"`, `"harness_does_not_expose"`, `"parse_er
 
 ### Problem
 
-A single eval run produces a snapshot: T1 pass/fail results, T2 quality scores, and timing data. This
+A single eval run produces a snapshot: L2 pass/fail results, L3 quality scores, and timing data. This
 answers "is the current output acceptable?" but not "did it get worse?" Regression detection requires
 comparing two snapshots — a baseline and a candidate — and surfacing meaningful differences.
 
@@ -300,9 +302,9 @@ The three regression axes (defined above) each compare runs where one variable c
 
 ### What to compare
 
-#### 3.1 T1 structural comparison (binary)
+#### 3.1 L2 structural comparison (binary)
 
-T1 assertions are pass/fail. Comparison is straightforward:
+L2 assertions are pass/fail. Comparison is straightforward:
 
 | Scenario | Meaning |
 |----------|---------|
@@ -311,11 +313,11 @@ T1 assertions are pass/fail. Comparison is straightforward:
 | Baseline fails, candidate passes | **Improvement** — something was fixed |
 | Both fail | Persistent issue — unchanged |
 
-This is the existing `compare_results.sh` model. No change needed for T1.
+This is the existing `compare_results.sh` model. No change needed for L2.
 
-#### 3.2 T2 quality score comparison (graduated)
+#### 3.2 L3 quality score comparison (graduated)
 
-T2 scores are 1–5 (or boolean/checklist). Comparison is more nuanced:
+L3 scores are 1–5 (or boolean/checklist). Comparison is more nuanced:
 
 | Metric | What it shows |
 |--------|--------------|
@@ -370,7 +372,7 @@ Beyond the generic comparison above, each command has artifacts where specific d
 | `verify_story` | Diff of final outcome | PASS→FAIL or FAIL→PASS |
 
 These are structural diffs (diffable with standard tools), not quality judgements. They complement the
-T2 quality comparison by showing WHAT changed, while T2 scores show WHETHER the change was better or
+L3 quality comparison by showing WHAT changed, while L3 scores show WHETHER the change was better or
 worse.
 
 ### Comparison report schema
@@ -387,13 +389,13 @@ worse.
       "run_id": "2026-10-21_open_story_opus4_claude",
       "timestamp": "2026-10-21T10:00:00Z"
     },
-    "t1_structural": {
+    "l2_structural": {
       "regressions": [],
       "improvements": [],
       "unchanged_pass": ["story_file_renamed", "index_updated", "..."],
       "unchanged_fail": []
     },
-    "t2_quality": {
+    "l3_quality": {
       "criteria": {
         "section_completeness": {
           "baseline": 12,
@@ -445,8 +447,8 @@ Run A (baseline)          Run B (candidate)
     │                          │
     ▼                          ▼
 ┌──────────┐             ┌──────────┐
-│ T1 results│             │ T1 results│
-│ T2 scores │             │ T2 scores │
+│ L2 results│             │ L2 results│
+│ L3 scores │             │ L3 scores │
 │ Timing    │             │ Timing    │
 └────┬──────┘             └────┬──────┘
      │                         │
@@ -474,7 +476,7 @@ Run A (baseline)          Run B (candidate)
 
 | Edge case | How to handle |
 |-----------|--------------|
-| Baseline has no T2 scores (ran before T2 was added) | Compare T1 only; note T2 comparison not possible |
+| Baseline has no L3 scores (ran before L3 was added) | Compare L2 only; note L3 comparison not possible |
 | Different judge model between runs | Flag in report — scores may not be comparable |
 | Different command set between runs (new criteria added) | Compare only shared criteria; list new/removed criteria separately |
 | Token data available in one run but not the other | Report available data; mark token comparison as incomplete |
@@ -518,7 +520,7 @@ Implementing both gives two independent regression signals:
 1. **Case failures** catch breakage — something that worked now doesn't
 2. **Score drops** catch degradation — everything works but the output is worse
 
-A command change could pass all T1 structural assertions (no case regressions) while dropping T2
+A command change could pass all L2 structural assertions (no case regressions) while dropping L3
 quality scores across the board. Conversely, a model change could improve quality scores while
 breaking a structural assertion. Neither signal subsumes the other.
 

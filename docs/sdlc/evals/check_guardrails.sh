@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Static guardrail assertions for SDLC command files.
-# Phase 1 eval — no API calls, no dependencies, runs in <1 second.
+# L1 eval — no API calls, no dependencies, runs in <1 second.
 #
 # Usage:
 #   ./docs/sdlc/evals/check_guardrails.sh              # Run from project root

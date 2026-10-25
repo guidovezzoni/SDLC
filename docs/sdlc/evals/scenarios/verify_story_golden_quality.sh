@@ -4,12 +4,12 @@
 #   Uses a two-tarball setup: main branch has the clean project state (open_story tarball)
 #   and the feature branch has the post-implementation state (verify_story tarball), so
 #   git diff main...HEAD returns a meaningful file list for the verify command.
-# T1: structural assertions on lifecycle operations and gate results.
-# T2: LLM-as-judge scoring against the golden reference.
+# L2: structural assertions on lifecycle operations and gate results.
+# L3: LLM-as-judge scoring against the golden reference.
 #
 # Interactive: yes — the command may prompt about device connectivity and gate failures.
 # Prerequisites: claude CLI (or $EVAL_TOOL), Android SDK, openspec CLI,
-#   ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for T2.
+#   ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for L3.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,8 +67,8 @@ run_eval_with_args "$FIXTURE_DIR" "$EVAL_CMD" "$OUTPUT_FILE" "5.1.2" || true
 echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 rm -f "$EVAL_CMD"
 
-# --- T1: Structural Assertions ---
-echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
+# --- L2: Structural Assertions ---
+echo -e "\n  ${BOLD}L2: Structural Assertions${RESET}"
 begin_assertions
 
 STORY_DIR="$FIXTURE_DIR/docs/userstories"
@@ -148,8 +148,8 @@ else
     assertion_fail "Report contains PASS outcome" "report not updated"
 fi
 
-# --- T2: LLM-as-judge ---
-echo -e "\n  ${BOLD}T2: LLM-as-judge${RESET}"
+# --- L3: LLM-as-judge ---
+echo -e "\n  ${BOLD}L3: LLM-as-judge${RESET}"
 
 CANDIDATE_DIR=$(collect_candidate_from_baseline "$FIXTURE_DIR")
 JUDGE_RESULT="$FIXTURE_DIR/judge_result.json"

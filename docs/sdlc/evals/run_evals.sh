@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SDLC Execution Evals — Phase 2 & 3
+# SDLC Execution Evals
 #
 # Runs SDLC commands against controlled fixtures via Claude Code CLI
 # and asserts on actual behavior.
@@ -13,8 +13,6 @@
 #   ./docs/sdlc/evals/run_evals.sh verify_story              # Run only verify_story evals
 #   ./docs/sdlc/evals/run_evals.sh exp_four_in_one           # Run only exp_four_in_one evals
 #   ./docs/sdlc/evals/run_evals.sh exp_vibe_a_story          # Run only exp_vibe_a_story evals
-#   ./docs/sdlc/evals/run_evals.sh phase2                    # Run all Phase 2 evals
-#   ./docs/sdlc/evals/run_evals.sh phase3                    # Run all Phase 3 evals
 #   ./docs/sdlc/evals/run_evals.sh doctor_all_pass           # Run a single scenario
 #   ./docs/sdlc/evals/run_evals.sh --tool opencode           # Run with OpenCode
 #   ./docs/sdlc/evals/run_evals.sh --tool opencode doctor    # Filter + tool
@@ -28,8 +26,8 @@
 # Environment variables:
 #   EVAL_TOOL         CLI tool to use (default: claude, overridden by --tool)
 #   EVAL_MODEL        Orchestrator model (default: CLI default, overridden by --model)
-#   EVAL_JUDGE_MODE   T2 judge backend: api (default) or subscription (overridden by --judge-mode)
-#   EVAL_JUDGE_MODEL  Model for the T2 judge (required for T2 to run)
+#   EVAL_JUDGE_MODE   L3 judge backend: api (default) or subscription (overridden by --judge-mode)
+#   EVAL_JUDGE_MODEL  Model for the L3 judge (required for L3 to run)
 
 set -euo pipefail
 
@@ -87,13 +85,13 @@ while [[ $# -gt 0 ]]; do
             echo "  --tool <name>        CLI tool to invoke (default: claude)"
             echo "  --model <model>      Orchestrator model (default: CLI default)"
             echo "  --output <name>      Name the run directory (default: <timestamp>_<tool>)"
-            echo "  --judge-mode <mode>   T2 judge backend: api (default, needs ANTHROPIC_API_KEY)"
+            echo "  --judge-mode <mode>   L3 judge backend: api (default, needs ANTHROPIC_API_KEY)"
             echo "                        or subscription (uses claude CLI subscription)"
-            echo "  --judge-model <model> Model for the T2 judge (required for T2 to run)"
+            echo "  --judge-model <model> Model for the L3 judge (required for L3 to run)"
             echo ""
             echo "Filters: doctor, project_doctor, open_story, propose_change,"
             echo "         verify_story, exp_four_in_one, exp_vibe_a_story,"
-            echo "         phase2, phase3, or a specific scenario name"
+            echo "         or a specific scenario name"
             exit 0
             ;;
         *)
@@ -138,7 +136,7 @@ FAILED_SCENARIOS=0
 FAILED_NAMES=()
 
 echo ""
-echo -e "${BOLD}SDLC Execution Evals (Phase 2 & 3)${RESET}"
+echo -e "${BOLD}SDLC Execution Evals${RESET}"
 echo -e "${DIM}Tool: $EVAL_TOOL${RESET}"
 echo -e "${DIM}Model: ${EVAL_MODEL:-default}${RESET}"
 echo -e "${DIM}Filter: ${FILTER:-all}${RESET}"

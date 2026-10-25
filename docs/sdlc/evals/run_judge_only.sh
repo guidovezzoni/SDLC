@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Run ONLY the T2 LLM-as-judge evaluation for one or more golden quality scenarios.
+# Run ONLY the L3 LLM-as-judge evaluation for one or more golden quality scenarios.
 #
-# This skips the expensive command execution (T1 + command run) and evaluates
+# This skips the expensive command execution (L2 + command run) and evaluates
 # candidate artifacts directly against the golden reference. Useful for:
 #   - Re-running the judge after changing a rubric
 #   - Evaluating saved candidate artifacts from a previous run
@@ -193,7 +193,7 @@ COMMAND="$1"
 CANDIDATE_DIR="${2:-}"
 
 echo ""
-echo -e "${BOLD}SDLC T2 Judge-Only Evaluation${RESET}"
+echo -e "${BOLD}SDLC L3 Judge-Only Evaluation${RESET}"
 echo -e "${DIM}Model: ${EVAL_JUDGE_MODEL:-not set}${RESET}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 

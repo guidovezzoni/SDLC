@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helper library for SDLC execution evals (Phase 2 & 3).
+# Shared helper library for SDLC execution evals.
 # Sourced by scenario scripts — not executed directly.
 
 set -euo pipefail
@@ -380,7 +380,7 @@ GRADLEW
 }
 
 # ---------------------------------------------------------------------------
-# Phase 3: Base fixture for story-level commands (open, propose, verify)
+# Base fixture for story-level commands (open, propose, verify)
 # ---------------------------------------------------------------------------
 
 create_story_command_base_fixture() {
@@ -759,7 +759,7 @@ run_eval_with_args() {
 }
 
 # ---------------------------------------------------------------------------
-# Candidate artifact collection for T2 judge
+# Candidate artifact collection for L3 judge
 # ---------------------------------------------------------------------------
 
 collect_candidate_from_baseline() {
@@ -792,7 +792,7 @@ collect_candidate_from_baseline() {
 }
 
 # ---------------------------------------------------------------------------
-# LLM-as-judge (T2 evaluation)
+# LLM-as-judge (L3 evaluation)
 # ---------------------------------------------------------------------------
 
 run_judge() {
@@ -803,7 +803,7 @@ run_judge() {
     local input_file="${5:-}"
 
     if [[ -z "$EVAL_JUDGE_MODEL" ]]; then
-        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: EVAL_JUDGE_MODEL not set"
+        echo -e "  ${YELLOW}SKIP${RESET} L3 judge: EVAL_JUDGE_MODEL not set"
         echo '{"skipped": true, "reason": "EVAL_JUDGE_MODEL not set"}' > "$result_file"
         return 2
     fi
@@ -902,7 +902,7 @@ _run_judge_cli() {
 
     local judge_tool="claude"
     if ! command -v "$judge_tool" > /dev/null 2>&1; then
-        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: '$judge_tool' CLI not found (EVAL_JUDGE_MODE=subscription)"
+        echo -e "  ${YELLOW}SKIP${RESET} L3 judge: '$judge_tool' CLI not found (EVAL_JUDGE_MODE=subscription)"
         echo '{"skipped": true, "reason": "claude CLI not found"}' > "$result_file"
         return 2
     fi
@@ -934,7 +934,7 @@ _run_judge_cli() {
     rm -f "$prompt_file" "$system_file"
 
     if [[ "$exit_code" -ne 0 ]]; then
-        echo -e "  ${RED}ERROR${RESET} T2 judge CLI exited with code $exit_code"
+        echo -e "  ${RED}ERROR${RESET} L3 judge CLI exited with code $exit_code"
         echo "{\"error\": true, \"exit_code\": $exit_code, \"output\": $(head -20 "$raw_output" | jq -Rs .)}" > "$result_file"
         rm -f "$raw_output"
         return 1
@@ -963,7 +963,7 @@ _run_judge_api() {
     local result_file="$3"
 
     if [[ -z "$ANTHROPIC_API_KEY" ]]; then
-        echo -e "  ${YELLOW}SKIP${RESET} T2 judge: ANTHROPIC_API_KEY not set (EVAL_JUDGE_MODE=api)"
+        echo -e "  ${YELLOW}SKIP${RESET} L3 judge: ANTHROPIC_API_KEY not set (EVAL_JUDGE_MODE=api)"
         echo '{"skipped": true, "reason": "ANTHROPIC_API_KEY not set"}' > "$result_file"
         return 2
     fi
@@ -993,7 +993,7 @@ _run_judge_api() {
     body=$(echo "$api_response" | sed '$d')
 
     if [[ "$http_code" != "200" ]]; then
-        echo -e "  ${RED}ERROR${RESET} T2 judge API call failed (HTTP $http_code)"
+        echo -e "  ${RED}ERROR${RESET} L3 judge API call failed (HTTP $http_code)"
         local error_msg
         error_msg=$(echo "$body" | jq -r '.error.message // empty' 2>/dev/null)
         [[ -n "$error_msg" ]] && echo -e "  ${DIM}$error_msg${RESET}"
@@ -1005,7 +1005,7 @@ _run_judge_api() {
     text_content=$(echo "$body" | jq -r '.content[0].text // empty')
 
     if [[ -z "$text_content" ]]; then
-        echo -e "  ${RED}ERROR${RESET} T2 judge returned empty response"
+        echo -e "  ${RED}ERROR${RESET} L3 judge returned empty response"
         echo "{\"error\": true, \"reason\": \"empty response\", \"raw\": $(echo "$body" | jq -Rs .)}" > "$result_file"
         return 1
     fi
@@ -1029,7 +1029,7 @@ _parse_judge_response() {
          [[ -n "$json_content" ]] && echo "$json_content" | jq . > /dev/null 2>&1; then
         :
     else
-        echo -e "  ${RED}ERROR${RESET} T2 judge returned invalid JSON"
+        echo -e "  ${RED}ERROR${RESET} L3 judge returned invalid JSON"
         echo "{\"error\": true, \"reason\": \"invalid JSON\", \"raw\": $(echo "$text_content" | jq -Rs .)}" > "$result_file"
         return 1
     fi
@@ -1037,7 +1037,7 @@ _parse_judge_response() {
     echo "$json_content" | jq --argjson usage "$usage_info" '. + {judge_usage: $usage}' > "$result_file" 2>/dev/null \
         || echo "$json_content" > "$result_file"
 
-    echo -e "  ${GREEN}OK${RESET} T2 judge scores written to $result_file"
+    echo -e "  ${GREEN}OK${RESET} L3 judge scores written to $result_file"
     local input_tokens output_tokens
     input_tokens=$(echo "$usage_info" | jq -r '.input_tokens // "?"' 2>/dev/null)
     output_tokens=$(echo "$usage_info" | jq -r '.output_tokens // "?"' 2>/dev/null)

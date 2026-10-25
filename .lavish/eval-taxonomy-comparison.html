@@ -1,0 +1,472 @@
+<!doctype html>
+<html data-theme="luxury" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eval Taxonomy — Three Approaches</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :where(.grid, .flex) > * { min-width: 0; }
+    :where(p, h1, h2, h3, h4, h5, h6, li, dd, td, th, .badge) { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body class="bg-base-100 text-base-content min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-base-200 border-b border-base-content/10 px-6 py-8 text-center">
+    <h1 class="text-3xl font-bold mb-2">Eval Taxonomy — Three Approaches</h1>
+    <p class="text-base-content/60 max-w-2xl mx-auto">
+      The current eval system uses three overlapping classification schemes.
+      Below are three options to unify them into one coherent taxonomy.
+    </p>
+  </header>
+
+  <!-- Current Problem -->
+  <main class="mx-auto max-w-6xl p-6 lg:p-10 space-y-10">
+
+    <section>
+      <h2 class="text-xl font-bold mb-4">The Problem: Three Overlapping Schemes</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="card card-border bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title text-warning text-sm">sdlc-eval-analysis.md</h3>
+            <p class="text-sm text-base-content/70">7 eval type codes</p>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <span class="badge badge-soft badge-warning badge-xs">STATIC_GUARDR</span>
+              <span class="badge badge-soft badge-warning badge-xs">EX-HAPPYP</span>
+              <span class="badge badge-soft badge-warning badge-xs">EX-EDGE</span>
+              <span class="badge badge-soft badge-warning badge-xs">EX-FAIL</span>
+              <span class="badge badge-soft badge-warning badge-xs">EX-BLOCKINGGT</span>
+              <span class="badge badge-soft badge-warning badge-xs">EX-SIDEFX</span>
+              <span class="badge badge-soft badge-warning badge-xs">EX-OUTPUTQ</span>
+            </div>
+            <p class="text-xs text-base-content/50 mt-2">Describes <em>what</em> is tested</p>
+          </div>
+        </div>
+        <div class="card card-border bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title text-info text-sm">sdlc-eval-golden-reference-plan.md</h3>
+            <p class="text-sm text-base-content/70">3 evaluation tiers</p>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <span class="badge badge-soft badge-info badge-xs">T1: Structural</span>
+              <span class="badge badge-soft badge-info badge-xs">T2: LLM-as-judge</span>
+              <span class="badge badge-soft badge-info badge-xs">T3: Functional</span>
+            </div>
+            <p class="text-xs text-base-content/50 mt-2">Describes <em>how</em> it's tested</p>
+          </div>
+        </div>
+        <div class="card card-border bg-base-200">
+          <div class="card-body">
+            <h3 class="card-title text-error text-sm">Script headers</h3>
+            <p class="text-sm text-base-content/70">4 implementation phases</p>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <span class="badge badge-soft badge-error badge-xs">Phase 1: Guardrails</span>
+              <span class="badge badge-soft badge-error badge-xs">Phase 2–3: Scenarios</span>
+              <span class="badge badge-soft badge-error badge-xs">Phase 4: Comparison</span>
+            </div>
+            <p class="text-xs text-base-content/50 mt-2">Describes <em>when</em> it was built</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Approach A: Two-axis -->
+    <section id="approach-a">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="badge badge-primary badge-lg font-bold">A</span>
+        <h2 class="text-xl font-bold">Two-Axis: Scope × Method</h2>
+      </div>
+      <p class="text-sm text-base-content/70 mb-4 max-w-3xl">
+        Every eval is classified on two independent axes: <strong>scope</strong> (what behaviour is tested)
+        and <strong>method</strong> (how the check runs). The analysis keeps its scope codes, the plan's tiers
+        become methods, and phase labels are dropped from scripts.
+      </p>
+
+      <!-- Matrix -->
+      <div class="overflow-x-auto rounded-box border border-base-content/10 bg-base-100 mb-4">
+        <table class="table table-sm">
+          <thead>
+            <tr class="bg-base-200">
+              <th class="text-xs">Scope ↓ · Method →</th>
+              <th class="text-xs text-center">Static grep<br><span class="text-base-content/40">free</span></th>
+              <th class="text-xs text-center">Structural assertion<br><span class="text-base-content/40">free</span></th>
+              <th class="text-xs text-center">LLM judge<br><span class="text-base-content/40">moderate</span></th>
+              <th class="text-xs text-center">Functional build<br><span class="text-base-content/40">high</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold">Guardrail</td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center text-base-content/20">—</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Happy path</td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Edge case</td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center text-base-content/20">—</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Gate failure</td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center text-base-content/20">—</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">Failure handling</td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center"><span class="badge badge-success badge-xs">●</span></td>
+              <td class="text-center text-base-content/20">—</td>
+              <td class="text-center text-base-content/20">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card card-border bg-base-200">
+          <div class="card-body p-4">
+            <h4 class="text-sm font-bold text-success">Strengths</h4>
+            <ul class="text-sm space-y-1 mt-1">
+              <li>• Clean separation — always know <em>what</em> and <em>how</em></li>
+              <li>• Existing analysis codes survive as-is (just the scope axis)</li>
+              <li>• Makes gaps precise: "happy-path × LLM-judge for implement_change"</li>
+              <li>• Naturally extensible — new methods or scopes add rows/columns</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card card-border bg-base-200">
+          <div class="card-body p-4">
+            <h4 class="text-sm font-bold text-error">Weaknesses</h4>
+            <ul class="text-sm space-y-1 mt-1">
+              <li>• Two-dimensional — harder to reference quickly ("the structural happy-path eval")</li>
+              <li>• Most cells are empty — matrix is sparse</li>
+              <li>• Analysis tables need a new column rather than a simple rename</li>
+              <li>• Biggest refactor of the three approaches</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 p-3 rounded-box bg-base-200/50 border border-base-content/5">
+        <p class="text-xs text-base-content/60">
+          <strong>Example:</strong> open_story refinement quality → scope: <span class="badge badge-xs badge-outline">happy-path</span> · methods:
+          <span class="badge badge-xs badge-outline">structural</span> (12 sections present) +
+          <span class="badge badge-xs badge-outline">llm-judge</span> (what_not_how score)
+        </p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Approach B: Single flat taxonomy -->
+    <section id="approach-b">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="badge badge-secondary badge-lg font-bold">B</span>
+        <h2 class="text-xl font-bold">Single Flat Taxonomy</h2>
+      </div>
+      <p class="text-sm text-base-content/70 mb-4 max-w-3xl">
+        Merge everything into one flat list of 6 eval types. Each type has a clear name,
+        cost, and script location. Drop the tier/phase language entirely.
+      </p>
+
+      <div class="overflow-x-auto rounded-box border border-base-content/10 bg-base-100 mb-4">
+        <table class="table table-sm">
+          <thead>
+            <tr class="bg-base-200">
+              <th class="text-xs">Type</th>
+              <th class="text-xs">Cost</th>
+              <th class="text-xs">Script layer</th>
+              <th class="text-xs">Replaces</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold">guardrail</td>
+              <td><span class="badge badge-success badge-xs">free</span></td>
+              <td class="text-sm">check_guardrails.sh</td>
+              <td class="text-xs text-base-content/50">STATIC_GUARDR</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">structural</td>
+              <td><span class="badge badge-success badge-xs">free</span></td>
+              <td class="text-sm">*_golden_quality.sh T1 section</td>
+              <td class="text-xs text-base-content/50">EX-SIDEFX + EX-OUTPUTQ (deterministic parts)</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">quality-judge</td>
+              <td><span class="badge badge-warning badge-xs">moderate</span></td>
+              <td class="text-sm">*_golden_quality.sh T2 section</td>
+              <td class="text-xs text-base-content/50">EX-OUTPUTQ (quality parts) + T2</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">functional</td>
+              <td><span class="badge badge-error badge-xs">high</span></td>
+              <td class="text-sm">*_golden_quality.sh T3 section</td>
+              <td class="text-xs text-base-content/50">T3 (new)</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">edge-case</td>
+              <td><span class="badge badge-warning badge-xs">moderate</span></td>
+              <td class="text-sm">*_dirty_state.sh, *_not_on_main.sh</td>
+              <td class="text-xs text-base-content/50">EX-EDGE + EX-FAIL</td>
+            </tr>
+            <tr>
+              <td class="font-semibold">gate-block</td>
+              <td><span class="badge badge-warning badge-xs">moderate</span></td>
+              <td class="text-sm">*_blocks_on_gate_failure.sh</td>
+              <td class="text-xs text-base-content/50">EX-BLOCKINGGT</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card card-border bg-base-200">
+          <div class="card-body p-4">
+            <h4 class="text-sm font-bold text-success">Strengths</h4>
+            <ul class="text-sm space-y-1 mt-1">
+              <li>• Simplest to explain and reference — one word per eval type</li>
+              <li>• Each scenario file tagged with its type(s)</li>
+              <li>• Analysis tables use the same names as the scripts</li>
+              <li>• Smallest refactor — mostly renaming</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card card-border bg-base-200">
+          <div class="card-body p-4">
+            <h4 class="text-sm font-bold text-error">Weaknesses</h4>
+            <ul class="text-sm space-y-1 mt-1">
+              <li>• Mixes scope and method — "quality-judge" is both</li>
+              <li>• Less precise gap analysis ("missing a structural" says less than "missing happy-path × structural")</li>
+              <li>• "edge-case" lumps EX-EDGE and EX-FAIL together</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 p-3 rounded-box bg-base-200/50 border border-base-content/5">
+        <p class="text-xs text-base-content/60">
+          <strong>Example:</strong> open_story refinement quality → types:
+          <span class="badge badge-xs badge-outline">structural</span> +
+          <span class="badge badge-xs badge-outline">quality-judge</span>
+        </p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Approach C: Layered pipeline -->
+    <section id="approach-c">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="badge badge-accent badge-lg font-bold">C</span>
+        <h2 class="text-xl font-bold">Independent Layers</h2>
+      </div>
+      <p class="text-sm text-base-content/70 mb-4 max-w-3xl">
+        Keep the plan's tiered structure but extend it to cover all eval types with stable, descriptive names.
+        Each layer is <strong>independent</strong> — they can run in any combination.
+        Ordered by cost for convenience, but there's no dependency between them.
+        The analysis tables get a layer column instead of type codes.
+      </p>
+
+      <!-- Independent layers diagram as inline SVG -->
+      <div class="flex justify-center mb-6">
+        <svg viewBox="0 0 800 200" width="100%" style="max-width:800px" role="img" aria-label="Five independent eval layers">
+          <!-- Boxes — no arrows between them -->
+          <rect x="10"  y="50" width="130" height="100" rx="8" fill="none" stroke="oklch(0.75 0.15 155)" stroke-width="2"/>
+          <rect x="170" y="50" width="130" height="100" rx="8" fill="none" stroke="oklch(0.70 0.15 200)" stroke-width="2"/>
+          <rect x="330" y="50" width="130" height="100" rx="8" fill="none" stroke="oklch(0.65 0.15 270)" stroke-width="2"/>
+          <rect x="490" y="50" width="130" height="100" rx="8" fill="none" stroke="oklch(0.60 0.15 25)"  stroke-width="2"/>
+          <rect x="650" y="50" width="130" height="100" rx="8" fill="none" stroke="oklch(0.55 0.15 330)" stroke-width="2"/>
+
+          <!-- Labels -->
+          <text x="75"  y="82" text-anchor="middle" fill="oklch(0.75 0.15 155)" font-size="13" font-weight="bold">L0</text>
+          <text x="75"  y="102" text-anchor="middle" fill="currentColor" font-size="11">guardrail</text>
+          <text x="75"  y="118" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">grep · free</text>
+          <text x="75"  y="132" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">always</text>
+
+          <text x="235" y="82" text-anchor="middle" fill="oklch(0.70 0.15 200)" font-size="13" font-weight="bold">L1</text>
+          <text x="235" y="102" text-anchor="middle" fill="currentColor" font-size="11">structural</text>
+          <text x="235" y="118" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">assertions · free</text>
+          <text x="235" y="132" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">always</text>
+
+          <text x="395" y="82" text-anchor="middle" fill="oklch(0.65 0.15 270)" font-size="13" font-weight="bold">L2</text>
+          <text x="395" y="102" text-anchor="middle" fill="currentColor" font-size="11">judge</text>
+          <text x="395" y="118" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">LLM call · moderate</text>
+          <text x="395" y="132" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">when judge set</text>
+
+          <text x="555" y="82" text-anchor="middle" fill="oklch(0.60 0.15 25)" font-size="13" font-weight="bold">L3</text>
+          <text x="555" y="102" text-anchor="middle" fill="currentColor" font-size="11">functional</text>
+          <text x="555" y="118" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">build/test · high</text>
+          <text x="555" y="132" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">opt-in + SDK</text>
+
+          <text x="715" y="82" text-anchor="middle" fill="oklch(0.55 0.15 330)" font-size="13" font-weight="bold">L4</text>
+          <text x="715" y="102" text-anchor="middle" fill="currentColor" font-size="11">behavioural</text>
+          <text x="715" y="118" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">scenarios · moderate</text>
+          <text x="715" y="132" text-anchor="middle" fill="currentColor" opacity="0.5" font-size="9">dedicated scripts</text>
+
+          <!-- Top label -->
+          <text x="400" y="30" text-anchor="middle" fill="currentColor" opacity="0.4" font-size="11">independent layers — ordered by cost, no dependency between them</text>
+        </svg>
+      </div>
+
+      <div class="overflow-x-auto rounded-box border border-base-content/10 bg-base-100 mb-4">
+        <table class="table table-sm">
+          <thead>
+            <tr class="bg-base-200">
+              <th class="text-xs">Layer</th>
+              <th class="text-xs">Name</th>
+              <th class="text-xs">Cost</th>
+              <th class="text-xs">Runs</th>
+              <th class="text-xs">Replaces</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-mono font-bold" style="color:oklch(0.75 0.15 155)">L0</td>
+              <td>guardrail</td>
+              <td><span class="badge badge-success badge-xs">free</span></td>
+              <td class="text-sm">always · check_guardrails.sh</td>
+              <td class="text-xs text-base-content/50">STATIC_GUARDR + Phase 1</td>
+            </tr>
+            <tr>
+              <td class="font-mono font-bold" style="color:oklch(0.70 0.15 200)">L1</td>
+              <td>structural</td>
+              <td><span class="badge badge-success badge-xs">free</span></td>
+              <td class="text-sm">always · in golden_quality.sh</td>
+              <td class="text-xs text-base-content/50">T1 + EX-SIDEFX (deterministic)</td>
+            </tr>
+            <tr>
+              <td class="font-mono font-bold" style="color:oklch(0.65 0.15 270)">L2</td>
+              <td>judge</td>
+              <td><span class="badge badge-warning badge-xs">moderate</span></td>
+              <td class="text-sm">when EVAL_JUDGE_MODEL set</td>
+              <td class="text-xs text-base-content/50">T2 + EX-OUTPUTQ (quality)</td>
+            </tr>
+            <tr>
+              <td class="font-mono font-bold" style="color:oklch(0.60 0.15 25)">L3</td>
+              <td>functional</td>
+              <td><span class="badge badge-error badge-xs">high</span></td>
+              <td class="text-sm">when EVAL_T3=true + Android SDK</td>
+              <td class="text-xs text-base-content/50">T3 (new, build/test)</td>
+            </tr>
+            <tr>
+              <td class="font-mono font-bold" style="color:oklch(0.55 0.15 330)">L4</td>
+              <td>behavioural</td>
+              <td><span class="badge badge-warning badge-xs">moderate</span></td>
+              <td class="text-sm">dedicated scenario scripts</td>
+              <td class="text-xs text-base-content/50">EX-EDGE + EX-FAIL + EX-BLOCKINGGT</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card card-border bg-base-200">
+          <div class="card-body p-4">
+            <h4 class="text-sm font-bold text-success">Strengths</h4>
+            <ul class="text-sm space-y-1 mt-1">
+              <li>• Preserves the plan's tier intuition (T1→L1, T2→L2, T3→L3)</li>
+              <li>• L4 gives edge/gate/failure scenarios a proper home</li>
+              <li>• Easy to reference: "we're missing L3 for implement_change"</li>
+              <li>• Each layer is independent — mix and match per scenario</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card card-border bg-base-200">
+          <div class="card-body p-4">
+            <h4 class="text-sm font-bold text-error">Weaknesses</h4>
+            <ul class="text-sm space-y-1 mt-1">
+              <li>• L4 "behavioural" is a catch-all — lumps edge cases, gate failures, and failure handling</li>
+              <li>• Analysis table needs a layer column (the 7 codes merge into 5 layers)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 p-3 rounded-box bg-base-200/50 border border-base-content/5">
+        <p class="text-xs text-base-content/60">
+          <strong>Example:</strong> open_story refinement quality →
+          <span class="badge badge-xs badge-outline" style="border-color:oklch(0.70 0.15 200)">L1</span> (12 sections present) +
+          <span class="badge badge-xs badge-outline" style="border-color:oklch(0.65 0.15 270)">L2</span> (what_not_how score)
+          &nbsp;·&nbsp; verify_story build gate blocks →
+          <span class="badge badge-xs badge-outline" style="border-color:oklch(0.55 0.15 330)">L4</span> (gate-failure scenario)
+        </p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Summary comparison -->
+    <section id="summary">
+      <h2 class="text-xl font-bold mb-4">At a Glance</h2>
+      <div class="overflow-x-auto rounded-box border border-base-content/10 bg-base-100">
+        <table class="table table-sm">
+          <thead>
+            <tr class="bg-base-200">
+              <th class="text-xs">Dimension</th>
+              <th class="text-xs text-center"><span class="badge badge-primary badge-xs">A</span> Two-axis</th>
+              <th class="text-xs text-center"><span class="badge badge-secondary badge-xs">B</span> Flat</th>
+              <th class="text-xs text-center"><span class="badge badge-accent badge-xs">C</span> Ind. Layers</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-semibold text-sm">Precision of gap identification</td>
+              <td class="text-center text-sm">★★★</td>
+              <td class="text-center text-sm">★★</td>
+              <td class="text-center text-sm">★★½</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-sm">Simplicity to explain</td>
+              <td class="text-center text-sm">★★</td>
+              <td class="text-center text-sm">★★★</td>
+              <td class="text-center text-sm">★★½</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-sm">Refactor effort</td>
+              <td class="text-center text-sm">High</td>
+              <td class="text-center text-sm">Low</td>
+              <td class="text-center text-sm">Medium</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-sm">Preserves existing naming</td>
+              <td class="text-center text-sm">Scope axis yes</td>
+              <td class="text-center text-sm">Mostly renames</td>
+              <td class="text-center text-sm">Tiers survive</td>
+            </tr>
+            <tr>
+              <td class="font-semibold text-sm">Handles L4/behavioural cleanly</td>
+              <td class="text-center text-sm">Yes (separate scope)</td>
+              <td class="text-center text-sm">Yes (2 types)</td>
+              <td class="text-center text-sm">Catch-all layer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="text-center text-xs text-base-content/30 py-6">
+    SDLC Eval Taxonomy Comparison · October 2026
+  </footer>
+
+</body>
+</html>

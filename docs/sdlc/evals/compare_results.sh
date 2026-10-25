@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# SDLC Eval Results Comparison — Phase 4
+# SDLC Eval Results Comparison
 #
 # Compares two aggregate JSON result files and highlights regressions,
-# improvements, new/removed scenarios, T2 score diffs, and timing changes.
+# improvements, new/removed scenarios, L3 score diffs, and timing changes.
 #
 # Usage:
 #   ./docs/sdlc/evals/compare_results.sh results/baseline.json results/candidate.json
@@ -343,7 +343,7 @@ if [[ ${#UNCHANGED[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# T2 Score comparison (requires jq)
+# L3 Score comparison (requires jq)
 # ---------------------------------------------------------------------------
 
 if $HAS_JQ; then
@@ -364,7 +364,7 @@ if $HAS_JQ; then
 
     if [[ ${#SCORE_SCENARIOS[@]} -gt 0 ]]; then
         echo ""
-        echo -e "${BOLD}T2 SCORE COMPARISON:${RESET}"
+        echo -e "${BOLD}L3 SCORE COMPARISON:${RESET}"
 
         for scenario in "${SCORE_SCENARIOS[@]}"; do
             echo -e "\n  ${BOLD}$scenario${RESET}"
@@ -425,7 +425,7 @@ if $HAS_JQ; then
 else
     if grep -q '"judge"' "$BASELINE" 2>/dev/null || grep -q '"judge"' "$CANDIDATE" 2>/dev/null; then
         echo ""
-        echo -e "  ${YELLOW}NOTE${RESET}: Install jq for T2 score comparison and timing analysis"
+        echo -e "  ${YELLOW}NOTE${RESET}: Install jq for L3 score comparison and timing analysis"
     fi
 fi
 
@@ -493,7 +493,7 @@ if [[ ${#REGRESSIONS[@]} -gt 0 ]]; then
 fi
 
 if [[ "$SCORE_REGRESSIONS_COUNT" -gt 0 ]]; then
-    echo -e "${YELLOW}${BOLD}${SCORE_REGRESSIONS_COUNT} score regression(s) across T2 criteria.${RESET}"
+    echo -e "${YELLOW}${BOLD}${SCORE_REGRESSIONS_COUNT} score regression(s) across L3 criteria.${RESET}"
 fi
 
 if [[ ${#REGRESSIONS[@]} -eq 0 && "$SCORE_REGRESSIONS_COUNT" -eq 0 ]]; then

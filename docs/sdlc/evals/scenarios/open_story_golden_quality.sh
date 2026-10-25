@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Scenario: open_story golden-reference quality evaluation.
 # Fixture: full venice project repo at the pre-open_story state (workshop/00_main).
-# T1: structural assertions on file operations and section presence.
-# T2: LLM-as-judge scoring against the golden reference.
+# L2: structural assertions on file operations and section presence.
+# L3: LLM-as-judge scoring against the golden reference.
 #
 # Interactive: yes — the command may ask about uncommitted changes and branch handling.
-# Prerequisites: claude CLI (or $EVAL_TOOL), ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for T2.
+# Prerequisites: claude CLI (or $EVAL_TOOL), ANTHROPIC_API_KEY + EVAL_JUDGE_MODEL for L3.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,8 +28,8 @@ echo -e "  ${DIM}Running $EVAL_TOOL for $SCENARIO_NAME (this may take several mi
 run_eval_with_args "$FIXTURE_DIR" "$COMMANDS_DIR/sdlc_open_story.md" "$OUTPUT_FILE" "5.1.2" || true
 echo -e "  ${DIM}Command completed in ${EVAL_DURATION}s${RESET}"
 
-# --- T1: Structural Assertions ---
-echo -e "\n  ${BOLD}T1: Structural Assertions${RESET}"
+# --- L2: Structural Assertions ---
+echo -e "\n  ${BOLD}L2: Structural Assertions${RESET}"
 begin_assertions
 
 STORY_DIR="$FIXTURE_DIR/docs/userstories"
@@ -104,8 +104,8 @@ else
     assertion_fail "Report contains Command Metrics"
 fi
 
-# --- T2: LLM-as-judge ---
-echo -e "\n  ${BOLD}T2: LLM-as-judge${RESET}"
+# --- L3: LLM-as-judge ---
+echo -e "\n  ${BOLD}L3: LLM-as-judge${RESET}"
 
 CANDIDATE_DIR=$(collect_candidate_from_baseline "$FIXTURE_DIR")
 JUDGE_RESULT="$FIXTURE_DIR/judge_result.json"
