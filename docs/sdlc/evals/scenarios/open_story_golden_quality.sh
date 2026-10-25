@@ -45,8 +45,20 @@ assert_file_exists "$WIP_FILE" \
 
 if [[ -f "$WIP_FILE" ]] && grep -qi "## Original user story" "$WIP_FILE"; then
     assertion_pass "Original user story section present"
+
+    # Check heading downgrade: original ## headings should appear as ### in this section
+    ORIGINAL_SECTION=$(sed -n '/^## Original user story/,$ p' "$WIP_FILE" | tail -n +2)
+    UNDEGRADED=$(echo "$ORIGINAL_SECTION" | grep -cE '^## ' || true)
+    DOWNGRADED=$(echo "$ORIGINAL_SECTION" | grep -cE '^### ' || true)
+    if [[ "$UNDEGRADED" -eq 0 && "$DOWNGRADED" -ge 1 ]]; then
+        assertion_pass "Original content headings downgraded (0 ##, $DOWNGRADED ###)"
+    else
+        assertion_fail "Original content headings downgraded" \
+            "found $UNDEGRADED ## and $DOWNGRADED ### in Original user story section"
+    fi
 else
     assertion_fail "Original user story section present"
+    assertion_fail "Original content headings downgraded" "Original user story section not found"
 fi
 
 echo -e "  ${DIM}Checking required sections...${RESET}"
