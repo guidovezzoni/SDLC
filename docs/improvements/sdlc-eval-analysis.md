@@ -40,23 +40,23 @@ Layers are independent — no dependency between them, any combination can run.
 | 6 | Create feature branch | L2: branch created under `feature/` with ticket number prefix | No | LOW |
 |   |                        | L5: skip when user chose to stay on current branch | No | LOW |
 | 7 | Open the user story (sub-agent, Haiku) | L1: Haiku model, `git mv`, failure handling, verification | Yes | MEDIUM |
-|   |                                         | L2: story file renamed correctly (status change) | No | HIGH |
-|   |                                         | L2: index.md updated with new filename | No | HIGH |
+|   |                                         | L2: story file renamed correctly (status change) | Yes (`open_story_golden_quality`) | HIGH |
+|   |                                         | L2: index.md updated with new filename | Yes (`open_story_golden_quality`) | HIGH |
 |   |                                         | L5: sub-agent fails — retries with Sonnet, then inline | No | MEDIUM |
 | 8 | Refine the user story (sub-agent, Opus) | L1: Opus model, failure handling, verification | Yes | MEDIUM |
-|   |                                          | L3: refined content at top, original at bottom under `## Original user story` | No | CRITICAL |
-|   |                                          | L3: refinement includes all 12 required sections (analytics, security, GDPR, etc.) | No | CRITICAL |
-|   |                                          | L3: stays at "what" level, does not prescribe architecture | No | HIGH |
+|   |                                          | L3: refined content at top, original at bottom under `## Original user story` | Yes (`open_story_golden_quality` L3 judge: content_preservation) | CRITICAL |
+|   |                                          | L3: refinement includes all 12 required sections (analytics, security, GDPR, etc.) | Yes (`open_story_golden_quality` L2 structural + L3 judge: section_completeness) | CRITICAL |
+|   |                                          | L3: stays at "what" level, does not prescribe architecture | Yes (`open_story_golden_quality` L3 judge: what_not_how) | HIGH |
 |   |                                          | L5: sub-agent fails — retries with Opus, then inline | No | MEDIUM |
 | 9 | Add a report (sub-agent, Haiku) | L1: references `guidelines-reports.md` | Yes | LOW |
-|   |                                  | L2: report file exists and contains opening section | No | MEDIUM |
+|   |                                  | L2: report file exists and contains opening section | Yes (`open_story_golden_quality`) | MEDIUM |
 |   |                                  | L5: sub-agent fails — retries, then inline | No | LOW |
 | 10 | Display summary | L2: output includes story name, branch, refinement highlights | No | LOW |
 | 11 | Suggest commit message | L1: `Suggest a commit message`, references `guidelines-git.md` | Yes | LOW |
 |    |                         | L2: commit message follows git guidelines format (prefixed with issue reference) | No | LOW |
 | — | Sub-agent orchestration (cross-cutting) | L1: `DO NOT MAKE ASSUMPTIONS`, sub-agent orchestration declaration | Yes | MEDIUM |
 
-**Summary:** 14 L1 guardrails (all exist), 20 potential L2–L5 evals (2 exist).
+**Summary:** 14 L1 guardrails (all exist), 20 potential L2–L5 evals (8 exist).
 
 ---
 
@@ -76,21 +76,21 @@ Layers are independent — no dependency between them, any combination can run.
 |   |                     | L5: with unambiguous story — proceeds without excessive questions | No | LOW |
 |   |                     | L3: all questions include WHY explanation | No | MEDIUM |
 | 4 | Propose change with BDD tasks (sub-agent, Sonnet) | L1: BDD, GIVEN/WHEN/THEN, test-first, `test task (write the test first)`, `implementation task`, `opsx:propose` | Yes | HIGH |
-|   |                                                    | L2: change directory created under `openspec/changes/` with all artifacts (proposal, design, specs, tasks) | No | CRITICAL |
-|   |                                                    | L3: tasks follow BDD structure — test task + implementation task pairs | No | CRITICAL |
-|   |                                                    | L3: each test task includes GIVEN/WHEN/THEN and target test class | No | HIGH |
-|   |                                                    | L3: non-testable tasks grouped separately (prerequisites, integration) | No | MEDIUM |
-|   |                                                    | L3: ordering: prerequisites first, BDD pairs middle, integration last, verification end | No | MEDIUM |
+|   |                                                    | L2: change directory created under `openspec/changes/` with all artifacts (proposal, design, specs, tasks) | Yes (`propose_change_golden_quality`) | CRITICAL |
+|   |                                                    | L3: tasks follow BDD structure — test task + implementation task pairs | Yes (`propose_change_golden_quality` L2 structural + L3 judge: bdd_task_structure) | CRITICAL |
+|   |                                                    | L3: each test task includes GIVEN/WHEN/THEN and target test class | Yes (`propose_change_golden_quality` L2 GIVEN/WHEN/THEN check + L3 judge) | HIGH |
+|   |                                                    | L3: non-testable tasks grouped separately (prerequisites, integration) | Yes (`propose_change_golden_quality` L3 judge: task_granularity) | MEDIUM |
+|   |                                                    | L3: ordering: prerequisites first, BDD pairs middle, integration last, verification end | Yes (`propose_change_golden_quality` L3 judge: bdd_task_structure) | MEDIUM |
 |   |                                                    | L5: sub-agent fails — retries with Sonnet, then Opus escalation | No | MEDIUM |
 | 5 | Add report (sub-agent, Haiku) | L1: references `guidelines-reports.md`, Haiku model | Yes | LOW |
-|   |                                | L2: report file contains proposal section with exploration summary, Q&A, artifacts list | No | MEDIUM |
+|   |                                | L2: report file contains proposal section with exploration summary, Q&A, artifacts list | Yes (`propose_change_golden_quality`) | MEDIUM |
 |   |                                | L5: sub-agent fails — retries, then inline | No | LOW |
 | 6 | Display summary | L2: output includes change name, artifact list, task structure summary | No | LOW |
 | 7 | Suggest commit message | L1: `Suggest a commit message` | Yes | LOW |
 |   |                         | L2: commit message follows git guidelines format | No | LOW |
 | — | Sub-agent orchestration (cross-cutting) | L1: sub-agent orchestration declaration, failure handling | Yes | MEDIUM |
 
-**Summary:** 15 L1 guardrails (all exist), 18 potential L2–L5 evals (1 exists).
+**Summary:** 15 L1 guardrails (all exist), 18 potential L2–L5 evals (7 exist).
 
 ---
 
@@ -108,13 +108,13 @@ Layers are independent — no dependency between them, any combination can run.
 |    |                                          | L2: execution plan displays correct model assignment per section | No | MEDIUM |
 |    |                                          | L2: BDD sections assigned Sonnet, mechanical (wire, pass, wrap) assigned Haiku | No | MEDIUM |
 | 1d | Execute sections sequentially (sub-agents) | L1: `RED confirmed`, `GREEN confirmed`, BDD Execution Discipline, `Verify RED`, `Verify GREEN` | Yes | HIGH |
-|    |                                              | L2: sub-agent completes all tasks in section, checkboxes updated | No | CRITICAL |
-|    |                                              | L2: BDD cycle: test written, RED confirmed, implementation written, GREEN confirmed | No | CRITICAL |
+|    |                                              | L2: sub-agent completes all tasks in section, checkboxes updated | Yes (`implement_change_golden_quality` L2 checkbox check + L3 judge: task_completion) | CRITICAL |
+|    |                                              | L2: BDD cycle: test written, RED confirmed, implementation written, GREEN confirmed | Partially (`implement_change_golden_quality` L3 judge: bdd_discipline assesses quality, not actual RED/GREEN execution) | CRITICAL |
 |    |                                              | L5: test unexpectedly passes at RED — stops and reports | No | CRITICAL |
 |    |                                              | L5: test still fails at GREEN (last impl task) — iterates or stops | No | HIGH |
 |    |                                              | L5: sub-agent fails — retries; Haiku escalates to Sonnet | No | HIGH |
 |    |                                              | L5: checkboxes missed but implementation exists — Haiku checkbox fix agent | No | MEDIUM |
-| 1e | Final verification | L2: every task in file is `[x]` after all sections processed | No | HIGH |
+| 1e | Final verification | L2: every task in file is `[x]` after all sections processed | Yes (`implement_change_golden_quality` tolerates ≤2 unchecked) | HIGH |
 |    |                     | L2: progress report shows correct counts and model distribution | No | LOW |
 | 2 | Review unresolved TODOs | L1: `TODO`, `RESOLVE NOW`, `ACKNOWLEDGED` | Yes | MEDIUM |
 |   |                          | L2: scans `app/src/`, classifies TODOs correctly | No | HIGH |
@@ -137,7 +137,7 @@ Layers are independent — no dependency between them, any combination can run.
 |   |                               | L2: AGENTS.md updated when changes affect documented sections | No | MEDIUM |
 |   |                               | L5: AGENTS.md already accurate — skip | No | LOW |
 | 8 | Add report | L1: references `guidelines-reports.md` | Yes | LOW |
-|   |             | L2: report contains implementation summary, iteration count, acknowledged TODOs, security result | No | MEDIUM |
+|   |             | L2: report contains implementation summary, iteration count, acknowledged TODOs, security result | Yes (`implement_change_golden_quality`) | MEDIUM |
 | 9 | Display summary | L2: output matches report content | No | LOW |
 | 10 | Suggest commit message | L1: `Suggest a commit message` | Yes | LOW |
 |    |                         | L2: follows git guidelines | No | LOW |
@@ -146,7 +146,7 @@ Layers are independent — no dependency between them, any combination can run.
 | — | Early device reminder | L2: non-blocking reminder at start about device needed later | No | LOW |
 | — | Sub-agent orchestration (cross-cutting) | L1: sub-agent orchestration declaration, retry/failure handling | Yes | MEDIUM |
 
-**Summary:** 24 L1 guardrails (all exist), 30 potential L2–L5 evals (0 exist).
+**Summary:** 24 L1 guardrails (all exist), 30 potential L2–L5 evals (3 exist, 1 partially).
 
 ---
 
@@ -195,21 +195,21 @@ Layers are independent — no dependency between them, any combination can run.
 |    |                                              | L5: criterion not met — FAIL, stops | No | CRITICAL |
 |    |                                              | L2: all criteria met — PASS | No | MEDIUM |
 | 12 | Close user story (sub-agent, Haiku) | L1: `git mv` present | Yes | MEDIUM |
-|    |                                      | L2: story file renamed to DONE status | No | HIGH |
-|    |                                      | L2: index.md updated with new filename | No | HIGH |
+|    |                                      | L2: story file renamed to DONE status | Yes (`verify_story_golden_quality`) | HIGH |
+|    |                                      | L2: index.md updated with new filename | Yes (`verify_story_golden_quality`) | HIGH |
 |    |                                      | L5: sub-agent fails — retries, escalates | No | MEDIUM |
 | 13 | Sync delta specs (sub-agent, Sonnet) | L1: `opsx:sync` present | Yes | MEDIUM |
-|    |                                       | L2: delta specs merged into main specs | No | HIGH |
+|    |                                       | L2: delta specs merged into main specs | Yes (`verify_story_golden_quality`) | HIGH |
 |    |                                       | L2: no delta specs — reports "nothing to sync" | No | LOW |
 |    |                                       | L5: sub-agent fails — retries | No | MEDIUM |
 | 14 | Archive change (sub-agent, Haiku) | L1: `opsx:archive` present | Yes | LOW |
-|    |                                    | L2: change directory moved to archive | No | MEDIUM |
+|    |                                    | L2: change directory moved to archive | Yes (`verify_story_golden_quality`) | MEDIUM |
 |    |                                    | L5: sub-agent fails — retries, escalates | No | LOW |
 | 15 | Verify README/AGENTS sync (sub-agent, Sonnet) | L2: docs updated if story changes affect them | No | MEDIUM |
 |    |                                                | L5: no changes needed — reports "in sync" | No | LOW |
 | 16 | Add report (sub-agent, Haiku) | L1: references `guidelines-reports.md` | Yes | LOW |
-|    |                                | L2: report contains all gate results, coverage table as HTML `<table>` | No | MEDIUM |
-|    |                                | L3: report includes all 13 data points listed in prompt | No | MEDIUM |
+|    |                                | L2: report contains all gate results, coverage table as HTML `<table>` | Yes (`verify_story_golden_quality` L2 gate keywords + L3 judge: report_completeness) | MEDIUM |
+|    |                                | L3: report includes all 13 data points listed in prompt | Yes (`verify_story_golden_quality` L3 judge: report_completeness) | MEDIUM |
 | 17 | Display summary | L2: includes coverage table rendered as markdown | No | LOW |
 | 18 | Suggest commit message | L1: `Suggest a commit message` | Yes | LOW |
 |    |                         | L2: follows git guidelines format | No | LOW |
@@ -220,7 +220,7 @@ Layers are independent — no dependency between them, any combination can run.
 |   |                                          | L5: gate N fails — gates N+1..end never reached | Yes (`verify_story_blocks_on_gate_failure`) | CRITICAL |
 | — | Sub-agent orchestration (cross-cutting) | L1: sub-agent orchestration declaration, failure handling | Yes | MEDIUM |
 
-**Summary:** 27 L1 guardrails (all exist), 40 potential L2–L5 evals (3 exist).
+**Summary:** 27 L1 guardrails (all exist), 40 potential L2–L5 evals (9 exist).
 
 ---
 
@@ -389,51 +389,44 @@ Layers are independent — no dependency between them, any combination can run.
 
 | Command | L1 Guardrails | L2–L5 Evals (potential) | L2–L5 Evals (exist) | Coverage | Uncovered CRITICAL | Uncovered HIGH |
 |---------|--------------|-------------------------|---------------------|----------|--------------------|----------------|
-| `sdlc_open_story` | 14 / 14 | 20 | 2 | 10% | 2 | 5 |
-| `sdlc_propose_change` | 15 / 15 | 18 | 1 | 6% | 2 | 3 |
-| `sdlc_implement_change` | 24 / 24 | 30 | 0 | 0% | 3 | 12 |
-| `sdlc_verify_story` | 27 / 27 | 40 | 3 | 8% | 4 | 8 |
+| `sdlc_open_story` | 14 / 14 | 20 | 8 | 40% | 0 | 2 |
+| `sdlc_propose_change` | 15 / 15 | 18 | 7 | 39% | 0 | 2 |
+| `sdlc_implement_change` | 24 / 24 | 30 | 3 | 10% | 2 | 11 |
+| `sdlc_verify_story` | 27 / 27 | 40 | 9 | 23% | 4 | 5 |
 | `sdlc_doctor` | 10 / 10 | 12 | 5 | 42% | 0 | 1 |
 | `sdlc_project_doctor` | 12 / 12 | 18 | 3 | 17% | 0 | 3 |
-| **Active total** | **102 / 102** | **138** | **14** | **10%** | **11** | **32** |
+| **Active total** | **102 / 102** | **138** | **35** | **25%** | **6** | **24** |
 | `sdlc_exp_four_in_one` *(exp)* | 19 / 19 | 18 | 1 | 6% | 2 | 5 |
 | `sdlc_exp_vibe_a_story` *(exp)* | 30 / 30 | 28 | 1 | 4% | 3 | 9 |
-| **Grand total** | **151 / 151** | **184** | **16** | **9%** | **16** | **46** |
+| **Grand total** | **151 / 151** | **184** | **37** | **20%** | **11** | **38** |
 
 > Experimental commands (`sdlc_exp_*`) are excluded from the active total. Their eval coverage
 > will not be expanded until they graduate from experimental status.
 
 ### Uncovered CRITICAL evals (active commands)
 
-The 11 uncovered CRITICAL evals across the 4 main commands and 2 doctor commands, ranked by
-command execution order:
+The 6 uncovered CRITICAL evals across the 4 main commands and 2 doctor commands, ranked by
+command execution order. The golden-quality scenarios (added October 2026) covered 5 of the
+original 11 CRITICALs — all in the L2/L3 output-quality category.
 
 | # | Command | Operation | Layer | What it would verify |
 |---|---------|-----------|-------|---------------------|
-| 1 | `sdlc_open_story` | Refine user story (Opus) | L3 | Refined content at top, original under `## Original user story` |
-| 2 | `sdlc_open_story` | Refine user story (Opus) | L3 | Refinement includes all 12 required sections (analytics, security, GDPR, etc.) |
-| 3 | `sdlc_propose_change` | Propose change (Sonnet) | L2 | Change directory created under `openspec/changes/` with all artifacts |
-| 4 | `sdlc_propose_change` | Propose change (Sonnet) | L3 | Tasks follow BDD structure — test task + implementation task pairs |
-| 5 | `sdlc_implement_change` | Execute sections (sub-agents) | L2 | Sub-agent completes all tasks in section, checkboxes updated |
-| 6 | `sdlc_implement_change` | Execute sections (sub-agents) | L2 | BDD cycle: test written, RED confirmed, implementation written, GREEN confirmed |
-| 7 | `sdlc_implement_change` | Execute sections (sub-agents) | L5 | Test unexpectedly passes at RED — stops and reports |
-| 8 | `sdlc_verify_story` | Security review gate | L5 | Critical/high findings — stops |
-| 9 | `sdlc_verify_story` | Clean build gate | L5 | Build fails — stops with errors |
-| 10 | `sdlc_verify_story` | Unit tests gate | L5 | Tests fail — stops with failure list |
-| 11 | `sdlc_verify_story` | Definition of Done gate | L5 | Criterion not met — FAIL, stops |
+| 1 | `sdlc_implement_change` | Execute sections (sub-agents) | L2 | BDD cycle: test written, RED confirmed, implementation written, GREEN confirmed *(partially covered by L3 judge: bdd_discipline assesses quality, but not actual RED/GREEN execution)* |
+| 2 | `sdlc_implement_change` | Execute sections (sub-agents) | L5 | Test unexpectedly passes at RED — stops and reports |
+| 3 | `sdlc_verify_story` | Security review gate | L5 | Critical/high findings — stops |
+| 4 | `sdlc_verify_story` | Clean build gate | L5 | Build fails — stops with errors |
+| 5 | `sdlc_verify_story` | Unit tests gate | L5 | Tests fail — stops with failure list |
+| 6 | `sdlc_verify_story` | Definition of Done gate | L5 | Criterion not met — FAIL, stops |
 
-**Patterns in the gaps:**
+**Pattern in the remaining gaps:**
 
-- **L3 judge quality** (#1, #2, #4): the refinement and BDD structuring steps produce the artifacts
-  that all downstream commands consume. If the output is malformed, every subsequent command works
-  from bad inputs. These require LLM-as-judge evaluation.
-- **L2 structural correctness** (#3, #5, #6): file creation and the BDD red/green cycle are the core
-  mechanical outputs of propose and implement. No eval currently verifies that the right files
-  appear in the right places, or that the test-first discipline is actually enforced.
-- **L5 behavioural gates** (#7, #8, #9, #10, #11): five of the eleven gaps are gates that should halt
+- **L5 behavioural gates** (#2–#6): five of the six remaining gaps are gates that should halt
   progress. Only the OpenSpec verify gate has a behavioural eval (`verify_story_blocks_on_gate_failure`);
   the remaining gates are untested. A gate that fails to stop is worse than no gate at all — it
   creates false confidence.
+- **L2 BDD cycle verification** (#1): the golden-quality L3 judge assesses whether the code *looks like*
+  it followed test-first discipline, but no eval verifies the actual RED→GREEN execution sequence.
+  This is the hardest gap to close — it requires a scenario where a test is designed to pass at RED.
 
 ### Cross-command consistency checks
 
@@ -448,20 +441,20 @@ overlap with per-command assertions and are not counted separately above.
 1. **L1 guardrails are at 100%.** All 151 per-command guardrails pass, plus 23 cross-command
    consistency checks. This remains the cheapest and most reliable layer.
 
-2. **L2–L5 coverage for active commands is 10%** (14 out of 138 potential). The doctor
-   commands pull the average up — the 4 main commands sit at 6/108 (6%).
+2. **L2–L5 coverage for active commands is 25%** (35 out of 138 potential). The golden-quality
+   scenarios (October 2026) raised coverage from 10% to 25% — the 4 main commands moved from
+   6/108 (6%) to 27/108 (25%).
 
-3. **Doctor commands have the strongest L2–L5 coverage.** `sdlc_doctor` at 42% is the
-   best-covered command — its 5 scenarios test happy path, individual check failures, and total
-   failure. `sdlc_project_doctor` at 17% covers happy path plus two specific failure modes. Both
-   are lightweight (Haiku-only sub-agents) and highly deterministic, making them ideal eval targets.
-   Neither has uncovered CRITICAL evals.
+3. **Output quality is now covered for all 4 main commands.** The golden-quality scenarios provide
+   L2 structural assertions and L3 LLM-as-judge scoring against golden reference artifacts from
+   a real pipeline run. This closed the original 5 highest-priority CRITICALs (#1–#5) and shifted
+   the remaining gap entirely to L5 behavioural gates.
 
-4. **`sdlc_implement_change` has zero L2–L5 evals and 3 uncovered CRITICALs.** This is the most
-   complex command (sub-agent orchestration per section, BDD red/green cycles, TODO resolution
-   loops, device gates). Its CRITICALs (#5, #6, #7) are the core BDD discipline — if these fail
-   silently, the entire test-first methodology is theatre. The README notes evals as deferred
-   because they require a full openspec change with task artifacts.
+4. **`sdlc_implement_change` remains the weakest main command** at 10% coverage (3/30) with
+   2 uncovered CRITICALs. The golden-quality scenario covers task completion and has an L3 judge
+   for BDD discipline, but the actual RED→GREEN execution cycle (#1) and the test-passes-at-RED
+   gate (#2) remain untested. These are the core BDD discipline — if they fail silently, the
+   test-first methodology is theatre.
 
 5. **`sdlc_verify_story` has 4 uncovered CRITICAL L5 behavioural gates.** Only the OpenSpec verify gate
    is tested. The security, build, unit test, and Definition of Done gates are untested — a
@@ -470,16 +463,13 @@ overlap with per-command assertions and are not counted separately above.
 
 6. **Highest-value next evals** (ordered by risk reduction per eval):
     1. **L5 blocking-gate cascade** (`sdlc_verify_story`): one scenario with a build or test failure
-       would cover #9 or #10 and confirm the gate-stops-everything protocol beyond the first gate.
+       would cover #4 or #5 and confirm the gate-stops-everything protocol beyond the first gate.
     2. **L5 BDD red/green enforcement** (`sdlc_implement_change`): a scenario where a test passes at
-       RED would cover #7 — the most dangerous silent failure in the framework.
-    3. **L3 refinement output structure** (`sdlc_open_story`): a judge scenario asserting the
-       12 required sections would cover #1 and #2 in one eval.
-    4. **L2+L3 change artifact creation** (`sdlc_propose_change`): a scenario asserting directory
-       structure (L2) and BDD task format (L3) would cover #3 and #4.
-    5. **L5 `sdlc_project_doctor` detekt version detection**: not CRITICAL but HIGH — the silent-failure
+       RED would cover #2 — the most dangerous silent failure in the framework.
+    3. **L5 `sdlc_project_doctor` detekt version detection**: not CRITICAL but HIGH — the silent-failure
        mode when detekt 1.x meets AGP 8+ makes this a high-value low-cost addition.
 
-7. **Coverage distribution is bottom-heavy.** The cheapest commands (doctors) have the best coverage;
-   the most complex and risky commands (implement_change, verify_story) have the least. This is
-   rational given rate-limit constraints but leaves the highest-consequence behaviours untested.
+7. **Coverage distribution has improved but L5 gates remain the blind spot.** The golden-quality
+   scenarios addressed the L2/L3 output-quality gap across all commands. The remaining 6 uncovered
+   CRITICALs are all L5 behavioural — gates that should halt progress but have no eval confirming
+   they do. This is the next frontier.
