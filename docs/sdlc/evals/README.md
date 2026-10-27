@@ -43,7 +43,7 @@ Every scenario is a self-contained script that sets up a fixture, runs a command
 
 | Command | Scenario | L2 | L3 | L5 | What it tests |
 |---------|----------|:--:|:--:|:--:|---------------|
-| `open_story` | `open_story_golden_quality` | ✓ | ✓ | | Story refinement quality: 12 sections, content preservation, heading downgrade |
+| `open_story` | `open_story_golden_quality` | ✓ | ✓ | | Story refinement quality: 12 sections, content preservation |
 | | `open_story_dirty_state` | | | ✓ | Warns about uncommitted changes before proceeding |
 | | `open_story_not_on_main` | | | ✓ | Detects non-main branch, asks about proceeding |
 | `propose_change` | `propose_change_golden_quality` | ✓ | ✓ | | Proposal, design, BDD tasks, spec quality |
@@ -232,7 +232,7 @@ Evals for commands with more complex behaviour and critical guardrails. These us
 
 | Scenario | What L2 (structural) checks | What L3 (judge) scores |
 |----------|----------------------------|----------------------|
-| `open_story_golden_quality` | WIP file created, original removed, 10+ sections, heading downgrade, index updated, report exists | section_completeness, what_not_how, acceptance_criteria_quality, analytics_section_quality, content_preservation, overall_coherence |
+| `open_story_golden_quality` | WIP file created, original removed, 10+ sections, index updated, report exists | section_completeness, what_not_how, acceptance_criteria_quality, analytics_section_quality, content_preservation, overall_coherence |
 | `propose_change_golden_quality` | Change directory created, proposal + design + tasks exist, BDD structure | proposal_quality, design_quality, task_quality, spec_alignment |
 | `implement_change_golden_quality` | Tasks checked off, 4+ source files, test files, UI test files, locale strings, report | task_completion, bdd_discipline, code_quality, test_quality |
 | `verify_story_golden_quality` | Story renamed DONE, WIP removed, index updated, change archived, spec synced, report with gates | gate_coverage, report_completeness, lifecycle_correctness, outcome_justified |

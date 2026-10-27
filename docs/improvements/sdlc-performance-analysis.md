@@ -65,7 +65,7 @@ it measures, and identifies where the analysis has no equivalent.
 | `what_not_how` | 1–5 | Requirements-level language; no architecture/patterns/libraries prescribed | Partial — L2 is binary |
 | `acceptance_criteria_quality` | 1–5 | Criteria are testable, specific, and cover the story scope | None |
 | `analytics_section_quality` | 1–5 | Events follow naming conventions (snake_case, object_action), parameters bounded, product question stated, privacy floor respected | None |
-| `content_preservation` | boolean | Original story text preserved verbatim under `## Original user story` with headings downgraded | Partial — L2 checks structure, not verbatim content |
+| `content_preservation` | boolean | Original story text preserved verbatim under `## Original user story` | Partial — L2 checks structure, not verbatim content |
 | `overall_coherence` | 1–5 | Refined story reads as a coherent, self-consistent document suitable for propose_change | None |
 
 **Gap analysis:** 3 criteria have no analysis equivalent at all (`acceptance_criteria_quality`,

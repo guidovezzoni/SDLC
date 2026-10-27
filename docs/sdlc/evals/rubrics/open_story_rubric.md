@@ -92,12 +92,11 @@ Key checks from the analytics guidelines:
 
 - **Type:** boolean (0 or 1)
 - **Score:** 1 if the original story text is preserved verbatim under an
-  `## Original user story` heading with headings downgraded one level; 0 otherwise.
+  `## Original user story` heading; 0 otherwise.
 
 Check that:
 - An `## Original user story` section exists near the bottom of the file
 - The original story content appears beneath it (compare against the input file)
-- Original `##` headings are downgraded to `###`, `###` to `####`, etc.
 
 ### overall_coherence
 
