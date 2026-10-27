@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helper library for SDLC execution evals (Phase 2 & 3).
+# Shared helper library for SDLC execution evals.
 # Sourced by scenario scripts — not executed directly.
 
 set -euo pipefail
@@ -11,12 +11,28 @@ COMMANDS_DIR="$PROJECT_ROOT/docs/sdlc/commands"
 
 EVAL_TOOL="${EVAL_TOOL:-claude}"
 
+ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
+EVAL_JUDGE_MODEL="${EVAL_JUDGE_MODEL:-}"
+EVAL_JUDGE_MAX_TOKENS="${EVAL_JUDGE_MAX_TOKENS:-4096}"
+EVAL_JUDGE_MODE="${EVAL_JUDGE_MODE:-api}"
+
+EVAL_START_TIME=""
+EVAL_END_TIME=""
+EVAL_DURATION=""
+EVAL_MODEL_USAGE=""
+EVAL_SUBAGENT_STATS=""
+EVAL_TOTAL_COST=""
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BOLD='\033[1m'
 DIM='\033[2m'
 RESET='\033[0m'
+
+progress() {
+    echo -e "  ${DIM}▸ $1${RESET}" >&2
+}
 
 ASSERTIONS_PASSED=0
 ASSERTIONS_FAILED=0
@@ -39,14 +55,77 @@ create_fixture_dir() {
 cleanup_fixture() {
     local fixture_dir="$1"
     if [[ -d "$fixture_dir" && "$fixture_dir" == /tmp/sdlc_eval_* ]]; then
-        rm -rf "$fixture_dir"
+        rm -rf "$fixture_dir" "${fixture_dir}_remote.git"
     fi
+}
+
+add_google_services_stub() {
+    local fixture_dir="$1"
+    local app_dir="$fixture_dir/app"
+    [[ -d "$app_dir" ]] || return 0
+    [[ -f "$app_dir/google-services.json" ]] && return 0
+    cat > "$app_dir/google-services.json" << 'GSJSON'
+{
+  "project_info": {"project_number":"0","project_id":"eval-stub","storage_bucket":""},
+  "client": [
+    {"client_info":{"mobilesdk_app_id":"1:0:android:eval","android_client_info":{"package_name":"com.guidovezzoni.venice"}},"api_key":[{"current_key":"stub"}]},
+    {"client_info":{"mobilesdk_app_id":"1:0:android:eval-debug","android_client_info":{"package_name":"com.guidovezzoni.venice.debug"}},"api_key":[{"current_key":"stub"}]}
+  ],
+  "configuration_version": "1"
+}
+GSJSON
+}
+
+add_local_remote() {
+    local fixture_dir="$1"
+    local remote_dir="${fixture_dir}_remote.git"
+    git clone --bare --quiet "$fixture_dir" "$remote_dir"
+    git -C "$fixture_dir" remote add origin "$remote_dir"
+    git -C "$fixture_dir" fetch --quiet origin
+    git -C "$fixture_dir" branch --set-upstream-to=origin/main main >/dev/null 2>&1 || true
 }
 
 snapshot_fixture() {
     local fixture_dir="$1"
     FIXTURE_SNAPSHOT=$(mktemp "/tmp/sdlc_eval_snapshot_XXXXXX")
     find "$fixture_dir" -not -path '*/.git/*' -not -path '*/.git' -not -name 'eval_output.txt' -type f | sort > "$FIXTURE_SNAPSHOT"
+}
+
+create_golden_fixture() {
+    local command_name="$1"
+    local tarball="$EVAL_ROOT/goldenreference/${command_name}/repo-snapshot.tar.gz"
+
+    if [[ ! -f "$tarball" ]]; then
+        echo "Error: Golden reference tarball not found: $tarball" >&2
+        return 1
+    fi
+
+    progress "Extracting golden reference for ${command_name}..."
+    local fixture_dir
+    fixture_dir=$(mktemp -d "/tmp/sdlc_eval_golden_${command_name}_XXXXXX")
+
+    tar xzf "$tarball" -C "$fixture_dir"
+    progress "Initialising isolated git repo..."
+    git -C "$fixture_dir" init --quiet
+    git -C "$fixture_dir" add -A
+    git -C "$fixture_dir" -c user.name="eval" -c user.email="eval@test" \
+        commit -m "golden reference baseline" --quiet
+    git -C "$fixture_dir" branch -M main
+
+    add_local_remote "$fixture_dir"
+    progress "Fixture ready: $fixture_dir"
+
+    echo "$fixture_dir"
+}
+
+get_golden_output_dir() {
+    local command_name="$1"
+    echo "$EVAL_ROOT/goldenreference/${command_name}/output"
+}
+
+get_golden_input() {
+    local command_name="$1"
+    echo "$EVAL_ROOT/goldenreference/${command_name}/input.md"
 }
 
 # ---------------------------------------------------------------------------
@@ -301,7 +380,7 @@ GRADLEW
 }
 
 # ---------------------------------------------------------------------------
-# Phase 3: Base fixture for story-level commands (open, propose, verify)
+# Base fixture for story-level commands (open, propose, verify)
 # ---------------------------------------------------------------------------
 
 create_story_command_base_fixture() {
@@ -544,6 +623,40 @@ INDEX_EOF
 # Eval execution
 # ---------------------------------------------------------------------------
 
+extract_model_usage() {
+    local json_file="$1"
+    local text_file="$2"
+
+    if ! command -v jq > /dev/null 2>&1; then
+        EVAL_MODEL_USAGE=""
+        EVAL_SUBAGENT_STATS=""
+        EVAL_TOTAL_COST=""
+        cp "$json_file" "$text_file"
+        return
+    fi
+
+    local result
+    result=$(jq -r '.result // empty' "$json_file" 2>/dev/null)
+    if [[ -n "$result" ]]; then
+        echo "$result" > "$text_file"
+    else
+        cp "$json_file" "$text_file"
+    fi
+
+    EVAL_MODEL_USAGE=$(jq -c '.modelUsage // empty' "$json_file" 2>/dev/null)
+    EVAL_SUBAGENT_STATS=$(jq -c '.subagent_stats // empty' "$json_file" 2>/dev/null)
+    EVAL_TOTAL_COST=$(jq -r '.total_cost_usd // empty' "$json_file" 2>/dev/null)
+
+    if [[ -n "$EVAL_MODEL_USAGE" ]]; then
+        local models
+        models=$(echo "$EVAL_MODEL_USAGE" | jq -r 'keys | join(", ")' 2>/dev/null)
+        local subagents_spawned
+        subagents_spawned=$(echo "$EVAL_SUBAGENT_STATS" | jq -r '.spawned // 0' 2>/dev/null)
+        echo -e "  ${DIM}Models: ${models}${RESET}"
+        echo -e "  ${DIM}Subagents spawned: ${subagents_spawned} | Cost: \$${EVAL_TOTAL_COST:-unknown}${RESET}"
+    fi
+}
+
 run_eval() {
     local fixture_dir="$1"
     local command_file="$2"
@@ -554,13 +667,37 @@ run_eval() {
     local prompt
     prompt="$(cat "$command_file")"
 
+    EVAL_START_TIME=$(date -Iseconds)
+    local start_epoch
+    start_epoch=$(date +%s)
+
     local exit_code=0
-    (cd "$fixture_dir" && "$EVAL_TOOL" \
-        -p "$prompt" \
-        --dangerously-skip-permissions \
-        --no-session-persistence \
-        --output-format text \
-    ) > "$output_file" 2>&1 || exit_code=$?
+    if [[ "$EVAL_TOOL" == "claude" ]]; then
+        local json_output
+        json_output=$(mktemp "/tmp/sdlc_eval_json_XXXXXX")
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" \
+            -p "$prompt" \
+            --dangerously-skip-permissions \
+            --no-session-persistence \
+            --output-format json \
+            ${EVAL_MODEL:+--model "$EVAL_MODEL"} \
+        ) > "$json_output" 2>&1 || exit_code=$?
+        extract_model_usage "$json_output" "$output_file"
+        rm -f "$json_output"
+    else
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" \
+            -p "$prompt" \
+            --dangerously-skip-permissions \
+            --no-session-persistence \
+            --output-format text \
+            ${EVAL_MODEL:+--model "$EVAL_MODEL"} \
+        ) > "$output_file" 2>&1 || exit_code=$?
+    fi
+
+    EVAL_END_TIME=$(date -Iseconds)
+    local end_epoch
+    end_epoch=$(date +%s)
+    EVAL_DURATION=$((end_epoch - start_epoch))
 
     return $exit_code
 }
@@ -578,21 +715,376 @@ run_eval_with_args() {
     prompt="$(cat "$command_file")"
     prompt="${prompt//\$ARGUMENTS/$args}"
 
+    local output_format="text"
+    if [[ "$EVAL_TOOL" == "claude" ]]; then
+        output_format="json"
+    fi
+
     local tool_args=(
         -p "$prompt"
         --dangerously-skip-permissions
         --no-session-persistence
-        --output-format text
+        --output-format "$output_format"
     )
 
     if [[ -n "$max_turns" ]]; then
         tool_args+=(--max-turns "$max_turns")
     fi
 
+    if [[ -n "${EVAL_MODEL:-}" ]]; then
+        tool_args+=(--model "$EVAL_MODEL")
+    fi
+
+    EVAL_START_TIME=$(date -Iseconds)
+    local start_epoch
+    start_epoch=$(date +%s)
+
     local exit_code=0
-    (cd "$fixture_dir" && "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
+    if [[ "$output_format" == "json" ]]; then
+        local json_output
+        json_output=$(mktemp "/tmp/sdlc_eval_json_XXXXXX")
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" "${tool_args[@]}") > "$json_output" 2>&1 || exit_code=$?
+        extract_model_usage "$json_output" "$output_file"
+        rm -f "$json_output"
+    else
+        (cd "$fixture_dir" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" "${tool_args[@]}") > "$output_file" 2>&1 || exit_code=$?
+    fi
+
+    EVAL_END_TIME=$(date -Iseconds)
+    local end_epoch
+    end_epoch=$(date +%s)
+    EVAL_DURATION=$((end_epoch - start_epoch))
 
     return $exit_code
+}
+
+# ---------------------------------------------------------------------------
+# Candidate artifact collection for L3 judge
+# ---------------------------------------------------------------------------
+
+collect_candidate_from_baseline() {
+    local fixture_dir="$1"
+    progress "Collecting candidate artifacts from baseline diff..."
+    local candidate_dir
+    candidate_dir=$(mktemp -d "/tmp/sdlc_eval_candidate_XXXXXX")
+
+    local baseline_ref="eval-baseline"
+    if ! git -C "$fixture_dir" rev-parse "$baseline_ref" >/dev/null 2>&1; then
+        baseline_ref=$(git -C "$fixture_dir" rev-list --max-parents=0 HEAD 2>/dev/null)
+    fi
+
+    local changed_files
+    changed_files=$(cd "$fixture_dir" && {
+        git diff --name-only "$baseline_ref" HEAD 2>/dev/null
+        git diff --name-only HEAD 2>/dev/null
+        git ls-files --others --exclude-standard 2>/dev/null
+    } | sort -u)
+
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        if [[ -f "$fixture_dir/$file" ]]; then
+            mkdir -p "$(dirname "$candidate_dir/$file")"
+            cp "$fixture_dir/$file" "$candidate_dir/$file"
+        fi
+    done <<< "$changed_files"
+
+    echo "$candidate_dir"
+}
+
+# ---------------------------------------------------------------------------
+# LLM-as-judge (L3 evaluation)
+# ---------------------------------------------------------------------------
+
+run_judge() {
+    local rubric_file="$1"
+    local golden_dir="$2"
+    local candidate_dir="$3"
+    local result_file="$4"
+    local input_file="${5:-}"
+
+    if [[ -z "$EVAL_JUDGE_MODEL" ]]; then
+        echo -e "  ${YELLOW}SKIP${RESET} L3 judge: EVAL_JUDGE_MODEL not set"
+        echo '{"skipped": true, "reason": "EVAL_JUDGE_MODEL not set"}' > "$result_file"
+        return 2
+    fi
+
+    local rubric golden_files candidate_files input_content
+    rubric="$(cat "$rubric_file")"
+
+    input_content=""
+    if [[ -n "$input_file" && -f "$input_file" ]]; then
+        input_content="$(cat "$input_file")"
+    fi
+
+    golden_files=""
+    while IFS= read -r -d '' file; do
+        local rel_path="${file#"$golden_dir"/}"
+        golden_files="${golden_files}--- ${rel_path} ---
+$(cat "$file")
+
+"
+    done < <(find "$golden_dir" -type f -print0 | sort -z)
+
+    candidate_files=""
+    while IFS= read -r -d '' file; do
+        local rel_path="${file#"$candidate_dir"/}"
+        candidate_files="${candidate_files}--- ${rel_path} ---
+$(cat "$file")
+
+"
+    done < <(find "$candidate_dir" -type f -print0 | sort -z)
+
+    local system_prompt
+    system_prompt="You are an evaluation judge for an AI coding assistant pipeline. You compare a candidate output against a golden reference using a per-criterion rubric.
+
+Your task:
+1. Read the rubric — it defines each criterion, its type (boolean, 1-5 scale, or checklist), and what constitutes each score level.
+2. Read the command input — this is what the command was given to work with.
+3. Read the golden reference artifacts — these are the high-quality expected outputs.
+4. Read the candidate artifacts — these are what the command actually produced.
+5. Score each criterion independently, comparing the candidate against the golden reference.
+
+Return ONLY a JSON object with this exact structure:
+{
+  \"criteria\": {
+    \"<criterion_name>\": {
+      \"score\": <number>,
+      \"max\": <number>,
+      \"rationale\": \"<one to two sentence explanation referencing specific evidence>\"
+    }
+  },
+  \"summary\": \"<one sentence overall assessment>\"
+}
+
+Scoring rules:
+- Be strict: the golden reference represents high-quality output produced by a successful pipeline run.
+- For boolean criteria: score 1 (true) or 0 (false).
+- For 1-5 scale criteria: use the rubric's score descriptions to calibrate.
+- For checklist criteria: count items that meet the criterion.
+- Every rationale must cite specific artifacts or content, not just restate the criterion.
+- If the candidate directory is empty or has no meaningful artifacts, score all criteria at their minimum."
+
+    local input_section=""
+    if [[ -n "$input_content" ]]; then
+        input_section="## Command Input (what the command was given)
+
+${input_content}
+
+"
+    fi
+
+    local user_prompt
+    user_prompt="## Rubric
+
+${rubric}
+
+${input_section}## Golden Reference Artifacts
+
+${golden_files}
+
+## Candidate Artifacts
+
+${candidate_files}
+
+Score the candidate against the golden reference using the rubric above. Return JSON only."
+
+    if [[ "$EVAL_JUDGE_MODE" == "subscription" ]]; then
+        _run_judge_cli "$system_prompt" "$user_prompt" "$result_file"
+    else
+        _run_judge_api "$system_prompt" "$user_prompt" "$result_file"
+    fi
+}
+
+_run_judge_cli() {
+    local system_prompt="$1"
+    local user_prompt="$2"
+    local result_file="$3"
+
+    local judge_tool="claude"
+    if ! command -v "$judge_tool" > /dev/null 2>&1; then
+        echo -e "  ${YELLOW}SKIP${RESET} L3 judge: '$judge_tool' CLI not found (EVAL_JUDGE_MODE=subscription)"
+        echo '{"skipped": true, "reason": "claude CLI not found"}' > "$result_file"
+        return 2
+    fi
+
+    progress "Calling judge via $judge_tool CLI (model: $EVAL_JUDGE_MODEL, subscription)..."
+
+    local prompt_file
+    prompt_file=$(mktemp "${TMPDIR:-/tmp}/eval_judge_prompt.XXXXXX")
+    printf '%s' "$user_prompt" > "$prompt_file"
+
+    local system_file
+    system_file=$(mktemp "${TMPDIR:-/tmp}/eval_judge_system.XXXXXX")
+    printf '%s' "$system_prompt" > "$system_file"
+
+    local raw_output
+    raw_output=$(mktemp "${TMPDIR:-/tmp}/eval_judge_raw.XXXXXX")
+
+    local exit_code=0
+    env -u ANTHROPIC_API_KEY "$judge_tool" \
+        -p - \
+        --system-prompt-file "$system_file" \
+        --model "$EVAL_JUDGE_MODEL" \
+        --output-format json \
+        --no-session-persistence \
+        --dangerously-skip-permissions \
+        < "$prompt_file" \
+        > "$raw_output" 2>&1 || exit_code=$?
+
+    rm -f "$prompt_file" "$system_file"
+
+    if [[ "$exit_code" -ne 0 ]]; then
+        echo -e "  ${RED}ERROR${RESET} L3 judge CLI exited with code $exit_code"
+        echo "{\"error\": true, \"exit_code\": $exit_code, \"output\": $(head -20 "$raw_output" | jq -Rs .)}" > "$result_file"
+        rm -f "$raw_output"
+        return 1
+    fi
+
+    local text_content
+    text_content=$(jq -r '.result // empty' "$raw_output" 2>/dev/null)
+    if [[ -z "$text_content" ]]; then
+        text_content=$(cat "$raw_output")
+    fi
+
+    local usage_info='{"input_tokens": "?", "output_tokens": "?"}'
+    local input_tokens output_tokens
+    input_tokens=$(jq -r '.usage.input_tokens // "?"' "$raw_output" 2>/dev/null)
+    output_tokens=$(jq -r '.usage.output_tokens // "?"' "$raw_output" 2>/dev/null)
+    usage_info="{\"input_tokens\": $input_tokens, \"output_tokens\": $output_tokens}"
+
+    rm -f "$raw_output"
+
+    _parse_judge_response "$text_content" "$usage_info" "$result_file"
+}
+
+_run_judge_api() {
+    local system_prompt="$1"
+    local user_prompt="$2"
+    local result_file="$3"
+
+    if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+        echo -e "  ${YELLOW}SKIP${RESET} L3 judge: ANTHROPIC_API_KEY not set (EVAL_JUDGE_MODE=api)"
+        echo '{"skipped": true, "reason": "ANTHROPIC_API_KEY not set"}' > "$result_file"
+        return 2
+    fi
+
+    local escaped_system escaped_user
+    escaped_system=$(printf '%s' "$system_prompt" | jq -Rs .)
+    escaped_user=$(printf '%s' "$user_prompt" | jq -Rs .)
+
+    progress "Calling judge API (model: $EVAL_JUDGE_MODEL)..."
+
+    local payload_file
+    payload_file=$(mktemp "${TMPDIR:-/tmp}/eval_judge_payload.XXXXXX")
+    printf '{"model":"%s","max_tokens":%s,"system":%s,"messages":[{"role":"user","content":%s}]}' \
+        "$EVAL_JUDGE_MODEL" "$EVAL_JUDGE_MAX_TOKENS" "$escaped_system" "$escaped_user" > "$payload_file"
+
+    local api_response
+    api_response=$(curl -s -w "\n%{http_code}" \
+        https://api.anthropic.com/v1/messages \
+        -H "x-api-key: $ANTHROPIC_API_KEY" \
+        -H "content-type: application/json" \
+        -H "anthropic-version: 2023-06-01" \
+        -d "@${payload_file}")
+    rm -f "$payload_file"
+
+    local http_code body
+    http_code=$(echo "$api_response" | tail -1)
+    body=$(echo "$api_response" | sed '$d')
+
+    if [[ "$http_code" != "200" ]]; then
+        echo -e "  ${RED}ERROR${RESET} L3 judge API call failed (HTTP $http_code)"
+        local error_msg
+        error_msg=$(echo "$body" | jq -r '.error.message // empty' 2>/dev/null)
+        [[ -n "$error_msg" ]] && echo -e "  ${DIM}$error_msg${RESET}"
+        echo "{\"error\": true, \"http_code\": $http_code, \"body\": $(echo "$body" | jq -Rs .)}" > "$result_file"
+        return 1
+    fi
+
+    local text_content
+    text_content=$(echo "$body" | jq -r '.content[0].text // empty')
+
+    if [[ -z "$text_content" ]]; then
+        echo -e "  ${RED}ERROR${RESET} L3 judge returned empty response"
+        echo "{\"error\": true, \"reason\": \"empty response\", \"raw\": $(echo "$body" | jq -Rs .)}" > "$result_file"
+        return 1
+    fi
+
+    local usage_info
+    usage_info=$(echo "$body" | jq -c '{input_tokens: .usage.input_tokens, output_tokens: .usage.output_tokens}' 2>/dev/null)
+
+    _parse_judge_response "$text_content" "$usage_info" "$result_file"
+}
+
+_parse_judge_response() {
+    local text_content="$1"
+    local usage_info="$2"
+    local result_file="$3"
+
+    local json_content=""
+
+    if echo "$text_content" | jq . > /dev/null 2>&1; then
+        json_content="$text_content"
+    elif json_content=$(echo "$text_content" | sed -n '/^```/,/^```/{/^```/d;p}') && \
+         [[ -n "$json_content" ]] && echo "$json_content" | jq . > /dev/null 2>&1; then
+        :
+    else
+        echo -e "  ${RED}ERROR${RESET} L3 judge returned invalid JSON"
+        echo "{\"error\": true, \"reason\": \"invalid JSON\", \"raw\": $(echo "$text_content" | jq -Rs .)}" > "$result_file"
+        return 1
+    fi
+
+    echo "$json_content" | jq --argjson usage "$usage_info" '. + {judge_usage: $usage}' > "$result_file" 2>/dev/null \
+        || echo "$json_content" > "$result_file"
+
+    echo -e "  ${GREEN}OK${RESET} L3 judge scores written to $result_file"
+    local input_tokens output_tokens
+    input_tokens=$(echo "$usage_info" | jq -r '.input_tokens // "?"' 2>/dev/null)
+    output_tokens=$(echo "$usage_info" | jq -r '.output_tokens // "?"' 2>/dev/null)
+    echo -e "  ${DIM}Judge tokens: ${input_tokens} in / ${output_tokens} out${RESET}"
+    return 0
+}
+
+assert_judge_score() {
+    local json_file="$1"
+    local criterion="$2"
+    local min_score="$3"
+    local description="${4:-$criterion >= $min_score}"
+
+    if [[ ! -f "$json_file" ]]; then
+        assertion_fail "$description" "judge result file not found: $json_file"
+        return
+    fi
+
+    local skipped
+    skipped=$(jq -r '.skipped // false' "$json_file" 2>/dev/null)
+    if [[ "$skipped" == "true" ]]; then
+        echo -e "    ${YELLOW}SKIP${RESET} $description (judge was skipped)"
+        return
+    fi
+
+    local error
+    error=$(jq -r '.error // false' "$json_file" 2>/dev/null)
+    if [[ "$error" == "true" ]]; then
+        assertion_fail "$description" "judge returned an error"
+        return
+    fi
+
+    local score
+    score=$(jq -r ".criteria.\"$criterion\".score // empty" "$json_file" 2>/dev/null)
+
+    if [[ -z "$score" ]]; then
+        assertion_fail "$description" "criterion '$criterion' not found in judge output"
+        return
+    fi
+
+    if (( $(echo "$score >= $min_score" | bc -l) )); then
+        assertion_pass "$description (score: $score)"
+    else
+        local rationale
+        rationale=$(jq -r ".criteria.\"$criterion\".rationale // \"no rationale\"" "$json_file" 2>/dev/null)
+        assertion_fail "$description" "score $score < $min_score — $rationale"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -803,6 +1295,29 @@ report_scenario_result() {
 
     # Output JSON result to results dir if RESULTS_DIR is set
     if [[ -n "${RESULTS_DIR:-}" ]]; then
+        local timing_json=""
+        if [[ -n "${EVAL_DURATION:-}" && "$EVAL_DURATION" -gt 0 ]] 2>/dev/null; then
+            timing_json=$(cat << TIMING_EOF
+,
+  "timing": {
+    "start": "$EVAL_START_TIME",
+    "end": "$EVAL_END_TIME",
+    "duration_seconds": $EVAL_DURATION
+  }
+TIMING_EOF
+)
+        fi
+
+        local model_json=""
+        if [[ -n "${EVAL_MODEL_USAGE:-}" ]] && command -v jq > /dev/null 2>&1; then
+            local stats="${EVAL_SUBAGENT_STATS}"
+            [[ -z "$stats" ]] && stats="{}"
+            model_json=",
+  \"model_usage\": ${EVAL_MODEL_USAGE},
+  \"subagent_stats\": ${stats},
+  \"total_cost_usd\": ${EVAL_TOTAL_COST:-null}"
+        fi
+
         cat > "$RESULTS_DIR/${scenario_name}.json" << RESULT_EOF
 {
   "scenario": "$scenario_name",
@@ -811,7 +1326,8 @@ report_scenario_result() {
   "total": $ASSERTIONS_TOTAL,
   "result": "$([ "$ASSERTIONS_FAILED" -eq 0 ] && echo "PASS" || echo "FAIL")",
   "tool": "$EVAL_TOOL",
-  "timestamp": "$(date -Iseconds)"
+  "model": "${EVAL_MODEL:-default}",
+  "timestamp": "$(date -Iseconds)"${timing_json}${model_json}
 }
 RESULT_EOF
     fi

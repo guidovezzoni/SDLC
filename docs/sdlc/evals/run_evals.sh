@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SDLC Execution Evals — Phase 2 & 3
+# SDLC Execution Evals
 #
 # Runs SDLC commands against controlled fixtures via Claude Code CLI
 # and asserts on actual behavior.
@@ -13,12 +13,10 @@
 #   ./docs/sdlc/evals/run_evals.sh verify_story              # Run only verify_story evals
 #   ./docs/sdlc/evals/run_evals.sh exp_four_in_one           # Run only exp_four_in_one evals
 #   ./docs/sdlc/evals/run_evals.sh exp_vibe_a_story          # Run only exp_vibe_a_story evals
-#   ./docs/sdlc/evals/run_evals.sh phase2                    # Run all Phase 2 evals
-#   ./docs/sdlc/evals/run_evals.sh phase3                    # Run all Phase 3 evals
 #   ./docs/sdlc/evals/run_evals.sh doctor_all_pass           # Run a single scenario
 #   ./docs/sdlc/evals/run_evals.sh --tool opencode           # Run with OpenCode
 #   ./docs/sdlc/evals/run_evals.sh --tool opencode doctor    # Filter + tool
-#   ./docs/sdlc/evals/run_evals.sh --output results/run1.json  # Custom output path
+#   ./docs/sdlc/evals/run_evals.sh --output my_baseline         # Named run directory
 #
 # Prerequisites:
 #   - claude CLI installed and authenticated
@@ -26,16 +24,19 @@
 #   - fastlane, bundle installed (for project_doctor CLI checks)
 #
 # Environment variables:
-#   EVAL_TOOL    CLI tool to use (default: claude, overridden by --tool)
+#   EVAL_TOOL         CLI tool to use (default: claude, overridden by --tool)
+#   EVAL_MODEL        Orchestrator model (default: CLI default, overridden by --model)
+#   EVAL_JUDGE_MODE   L3 judge backend: api (default) or subscription (overridden by --judge-mode)
+#   EVAL_JUDGE_MODEL  Model for the L3 judge (required for L3 to run)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENARIOS_DIR="$SCRIPT_DIR/scenarios"
-RESULTS_DIR="$SCRIPT_DIR/results"
+BASE_RESULTS="$SCRIPT_DIR/results"
 
 export EVAL_TOOL="${EVAL_TOOL:-claude}"
-export RESULTS_DIR
+export EVAL_MODEL="${EVAL_MODEL:-}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -58,20 +59,39 @@ while [[ $# -gt 0 ]]; do
             export EVAL_TOOL
             shift 2
             ;;
+        --model)
+            EVAL_MODEL="$2"
+            export EVAL_MODEL
+            shift 2
+            ;;
         --output)
             CUSTOM_OUTPUT="$2"
             shift 2
             ;;
+        --judge-mode)
+            EVAL_JUDGE_MODE="$2"
+            export EVAL_JUDGE_MODE
+            shift 2
+            ;;
+        --judge-model)
+            EVAL_JUDGE_MODEL="$2"
+            export EVAL_JUDGE_MODEL
+            shift 2
+            ;;
         -h|--help)
-            echo "Usage: $(basename "$0") [--tool <name>] [--output <path>] [<filter>]"
+            echo "Usage: $(basename "$0") [--tool <name>] [--model <model>] [--output <name>] [--judge-mode <mode>] [<filter>]"
             echo ""
             echo "Options:"
-            echo "  --tool <name>    CLI tool to invoke (default: claude)"
-            echo "  --output <path>  Write aggregate results to a custom path"
+            echo "  --tool <name>        CLI tool to invoke (default: claude)"
+            echo "  --model <model>      Orchestrator model (default: CLI default)"
+            echo "  --output <name>      Name the run directory (default: <timestamp>_<tool>)"
+            echo "  --judge-mode <mode>   L3 judge backend: api (default, needs ANTHROPIC_API_KEY)"
+            echo "                        or subscription (uses claude CLI subscription)"
+            echo "  --judge-model <model> Model for the L3 judge (required for L3 to run)"
             echo ""
             echo "Filters: doctor, project_doctor, open_story, propose_change,"
             echo "         verify_story, exp_four_in_one, exp_vibe_a_story,"
-            echo "         phase2, phase3, or a specific scenario name"
+            echo "         or a specific scenario name"
             exit 0
             ;;
         *)
@@ -97,8 +117,14 @@ if ! "$EVAL_TOOL" --help 2>&1 | grep -q "dangerously-skip-permissions"; then
     echo "Evals require non-interactive execution. Proceed with caution."
 fi
 
-mkdir -p "$RESULTS_DIR"
-rm -f "$RESULTS_DIR"/*.json
+if [[ -n "$CUSTOM_OUTPUT" ]]; then
+    RUN_DIR="$BASE_RESULTS/runs/$CUSTOM_OUTPUT"
+else
+    RUN_DIR="$BASE_RESULTS/runs/$(date +%Y-%m-%dT%H%M%S)_${EVAL_TOOL}"
+fi
+mkdir -p "$RUN_DIR"
+RESULTS_DIR="$RUN_DIR"
+export RESULTS_DIR
 
 # ---------------------------------------------------------------------------
 # Discover and run scenarios
@@ -110,8 +136,9 @@ FAILED_SCENARIOS=0
 FAILED_NAMES=()
 
 echo ""
-echo -e "${BOLD}SDLC Execution Evals (Phase 2 & 3)${RESET}"
+echo -e "${BOLD}SDLC Execution Evals${RESET}"
 echo -e "${DIM}Tool: $EVAL_TOOL${RESET}"
+echo -e "${DIM}Model: ${EVAL_MODEL:-default}${RESET}"
 echo -e "${DIM}Filter: ${FILTER:-all}${RESET}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -198,13 +225,13 @@ else
 fi
 
 echo ""
-echo -e "${DIM}Results saved to: $RESULTS_DIR/${RESET}"
+echo -e "${DIM}Results saved to: $RUN_DIR/${RESET}"
 
 # Aggregate results into a single JSON file
-AGGREGATE="$RESULTS_DIR/aggregate.json"
+AGGREGATE="$RUN_DIR/aggregate.json"
 echo "[" > "$AGGREGATE"
 FIRST=true
-for result_file in "$RESULTS_DIR"/*.json; do
+for result_file in "$RUN_DIR"/*.json; do
     [[ "$(basename "$result_file")" == "aggregate.json" ]] && continue
     [[ -f "$result_file" ]] || continue
     if $FIRST; then
@@ -217,11 +244,7 @@ done
 echo "" >> "$AGGREGATE"
 echo "]" >> "$AGGREGATE"
 
-# Copy aggregate to custom output path if specified
-if [[ -n "$CUSTOM_OUTPUT" ]]; then
-    mkdir -p "$(dirname "$CUSTOM_OUTPUT")"
-    cp "$AGGREGATE" "$CUSTOM_OUTPUT"
-    echo -e "${DIM}Custom output: $CUSTOM_OUTPUT${RESET}"
-fi
+# Update latest symlink
+ln -sfn "$RUN_DIR" "$BASE_RESULTS/runs/latest"
 
 exit "$FAILED_SCENARIOS"

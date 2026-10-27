@@ -1,4 +1,8 @@
 .idea/*
+.env
 
 # SDLC eval results
 docs/sdlc/evals/results/*.json
+docs/sdlc/evals/results/*.txt
+docs/sdlc/evals/results/*_candidate/
+docs/sdlc/evals/results/runs/

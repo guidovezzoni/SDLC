@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report: 5.1.2 — Navigate a Leg Segment</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #fafafa;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    .report-header {
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 1rem;
+      margin-bottom: 2rem;
+    }
+    .report-header h1 { font-size: 1.75rem; color: #1e293b; }
+    .report-meta {
+      display: flex; gap: 2rem; flex-wrap: wrap;
+      margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;
+    }
+    .report-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
+
+    .report-section {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .report-section header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 0.75rem; margin-bottom: 1rem;
+    }
+    .report-section header h2 { font-size: 1.25rem; color: #1e293b; }
+    .report-section header time { font-size: 0.8rem; color: #94a3b8; white-space: nowrap; }
+    .section-source { font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-bottom: 0.75rem; }
+
+    h3 { font-size: 1.05rem; color: #334155; margin: 1rem 0 0.5rem; }
+    p { margin-bottom: 0.75rem; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.25rem; }
+    code {
+      background: #f1f5f9; padding: 0.15rem 0.35rem; border-radius: 3px;
+      font-size: 0.875em;
+      font-family: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+    }
+
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; }
+    th { background: #f8fafc; font-weight: 600; color: #475569; }
+
+    .badge {
+      display: inline-block; padding: 0.15rem 0.5rem;
+      border-radius: 4px; font-size: 0.8rem; font-weight: 600;
+    }
+    .badge-pass { background: #dcfce7; color: #166534; }
+    .badge-fail { background: #fee2e2; color: #991b1b; }
+    .badge-warn { background: #fef9c3; color: #854d0e; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+
+    .outcome { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; font-weight: 600; }
+    .outcome-passed { background: #dcfce7; color: #166534; border-left: 4px solid #22c55e; }
+    .outcome-failed { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+  </style>
+</head>
+<body>
+
+  <div class="report-header">
+    <h1>5.1.2 — Navigate a Leg Segment</h1>
+    <div class="report-meta">
+      <span><strong>Story:</strong> 5.1.2</span>
+      <span><strong>Branch:</strong> workshop/main</span>
+      <span><strong>Created:</strong> 2026-10-05</span>
+    </div>
+  </div>
+
+  <main id="report-sections">
+
+  <section class="report-section" data-source="open_user_story" data-timestamp="2026-10-05T12:59:33Z">
+    <header>
+      <h2>Opening &amp; Refinement</h2>
+      <time datetime="2026-10-05T12:59:33Z">5 Oct 2026, 12:59:33 UTC</time>
+    </header>
+    <p class="section-source">Source: open_user_story</p>
+
+    <p>The user story was opened and refined on branch <code>workshop/main</code>. The story was renamed to indicate work-in-progress status.</p>
+
+    <h3>Acceptance Criteria Expansion</h3>
+    <p>The story was expanded from 3 to 9 acceptance criteria, covering the full feature scope:</p>
+    <ul>
+      <li>User can tap Navigate button on a specific leg segment in the route</li>
+      <li>Navigate button is only visible when a route is complete and the leg has both origin and destination</li>
+      <li>Tapping Navigate launches Google Maps directions from origin to destination</li>
+      <li>The directions URL includes both origin and destination coordinates</li>
+      <li>Error handling when no navigation app is available shows appropriate message</li>
+      <li>Navigation works with all stop types (starting point, intermediate, destination)</li>
+      <li>The feature respects system navigation app availability</li>
+      <li>User is returned to the trip detail view after selecting a navigation app</li>
+      <li>Analytics event <code>navigation_launched</code> is emitted with leg position and stop type</li>
+    </ul>
+
+    <h3>Feature Distinction from 5.1.1</h3>
+    <p>This story is deliberately distinguished from Epic 5 Feature 5.1.1 (Navigate to Stop), which uses a single-point <code>geo:</code> URI for a stop location. Story 5.1.2 enables leg segment navigation using <strong>Google Maps directions URLs with both origin AND destination coordinates</strong>. This provides turn-by-turn routing between two points on the trip, rather than navigation to a single stop. The key design decision: Google Maps directions URLs are the only option that shows both origin and destination, making them essential for leg navigation use cases.</p>
+
+    <h3>MVI Architecture</h3>
+    <p>Defined MVI artefacts for the feature:</p>
+    <ul>
+      <li><strong>Intent:</strong> <code>OnNavigateLegClicked</code> — fired when the user taps Navigate on a leg</li>
+      <li><strong>Effect:</strong> <code>LaunchLegNavigation</code> — carries origin/destination coordinates and triggers the intent</li>
+      <li><strong>Reused Effect:</strong> <code>ShowNavigationError</code> — handles cases where no navigation app is available</li>
+    </ul>
+
+    <h3>Files to Modify</h3>
+    <p>11 files identified for changes:</p>
+    <ol>
+      <li>Domain model: Stop type extensions for coordinate conversion</li>
+      <li>ViewModel: TripDetailViewModel intent handler for leg navigation</li>
+      <li>State: TripDetailUiState extended with leg navigation state</li>
+      <li>Effect: TripDetailUiEffect updated with LaunchLegNavigation</li>
+      <li>Composable: LegSummary card with Navigate button</li>
+      <li>Composable: TripDetailScreen navigation handling</li>
+      <li>Utility: NavigationUriBuilder extended for leg directions URLs</li>
+      <li>Unit test: TripDetailViewModel leg navigation intent tests</li>
+      <li>Unit test: NavigationUriBuilder directions URL tests</li>
+      <li>Compose UI test: LegSummary Navigate button visibility and clicks</li>
+      <li>Compose UI test: TripDetailScreen leg navigation error handling</li>
+    </ol>
+
+    <h3>Test Strategy</h3>
+    <p>Comprehensive unit test coverage planned:</p>
+    <ul>
+      <li><strong>ViewModel tests:</strong> Verify <code>OnNavigateLegClicked</code> intent creates <code>LaunchLegNavigation</code> effect with correct coordinates; test error path emits <code>ShowNavigationError</code></li>
+      <li><strong>NavigationUriBuilder tests:</strong> Validate Google Maps directions URL construction with origin and destination; test coordinate formatting and special character escaping; verify URL structure matches Maps expectations</li>
+      <li><strong>Composable tests:</strong> Assert Navigate button appears only when leg has complete coordinates; verify button click fires correct intent; confirm error snackbar displays on navigation failure</li>
+    </ul>
+
+    <h3>Analytics</h3>
+    <p>The existing <code>navigation_launched</code> event (Epic 5 Feature 5.1 tracking plan entry) is reused. No new analytics events are needed — leg navigation follows the same tracking as stop navigation, emitting the event with <code>stop_type</code> and <code>stop_position</code> parameters adapted for the leg context.</p>
+
+    <h3>Definition of Done</h3>
+    <p>17-item DoD checklist:</p>
+    <ol>
+      <li>All 9 acceptance criteria verified on-device</li>
+      <li>Unit tests for ViewModel leg navigation intent: PASS</li>
+      <li>Unit tests for NavigationUriBuilder directions URLs: PASS</li>
+      <li>Compose UI tests for LegSummary Navigate button: PASS</li>
+      <li>Compose UI tests for error handling: PASS</li>
+      <li>Code coverage remains ≥ 95%</li>
+      <li>Detekt static analysis: PASS (no warnings)</li>
+      <li>Layout preview for LegSummary with Navigate button: rendered</li>
+      <li>Navigate button accessibility verified (content description, keyboard navigation)</li>
+      <li>Error message strings extracted to strings.xml</li>
+      <li>Translations updated (Italian, Spanish)</li>
+      <li>Analytics event emits with correct parameters on all paths</li>
+      <li>No navigation app available case tested</li>
+      <li>Back navigation from Maps returns to trip detail</li>
+      <li>Feature branch rebased on latest main</li>
+      <li>All commits follow commit message format</li>
+      <li>Pull request description matches specification</li>
+    </ol>
+
+    <h3>Security &amp; GDPR</h3>
+    <p><strong>Risk Level: Low.</strong> No special mitigation needed. The feature passes coordinates to Google Maps via a standard directions URL — a public API interaction with no user identifiers or sensitive data. No additional data storage, no new external API credentials, no new database fields.</p>
+
+    <h3>Command Metrics</h3>
+    <table>
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Start time</td><td>2026-10-05 12:54:15</td></tr>
+      <tr><td>End time</td><td>2026-10-05 12:59:33</td></tr>
+      <tr><td>Duration</td><td>5m 18s</td></tr>
+      <tr><td>User interactions</td><td>0</td></tr>
+    </table>
+    <p><em>Metrics are tracked by the LLM during execution. Duration includes time waiting for user responses. Interaction count relies on in-context tracking and may be approximate.</em></p>
+
+  </section>
+
+  </main>
+
+</body>
+</html>

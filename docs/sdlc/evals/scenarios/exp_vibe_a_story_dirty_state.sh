@@ -28,7 +28,7 @@ PROMPT="$(cat "$COMMANDS_DIR/sdlc_exp_vibe_a_story.md")"
 PROMPT="${PROMPT//\$ARGUMENTS/99.1.1 test feature}"
 
 local_exit_code=0
-(cd "$FIXTURE_DIR" && "$EVAL_TOOL" \
+(cd "$FIXTURE_DIR" && env -u ANTHROPIC_API_KEY "$EVAL_TOOL" \
     -p "$PROMPT" \
     --dangerously-skip-permissions \
     --no-session-persistence \
