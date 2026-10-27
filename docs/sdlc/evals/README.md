@@ -171,12 +171,47 @@ Arguments can be a run directory name, `latest`, or a full path to an aggregate 
 
 ---
 
+### `statistical_baseline.sh` — Statistical baseline and comparison (no API calls)
+
+Reads L3 scores from all saved runs and computes per-criterion statistics (mean, standard deviation, min, max). Optionally compares a single run against the baseline distribution using z-scores to detect regressions.
+
+```bash
+# Show L3 score statistics across all saved runs
+./docs/sdlc/evals/statistical_baseline.sh
+
+# Include pass rates and timing statistics
+./docs/sdlc/evals/statistical_baseline.sh --all
+
+# Compare a specific run against the baseline distribution
+./docs/sdlc/evals/statistical_baseline.sh --compare baseline5_5_fix2
+
+# Machine-readable JSON output
+./docs/sdlc/evals/statistical_baseline.sh --json
+
+# Custom z-score threshold (default: 1.5)
+./docs/sdlc/evals/statistical_baseline.sh --compare my_run --threshold 2.0
+```
+
+**Comparison verdicts:**
+- `LIKELY REGRESSION` — score is more than `threshold` standard deviations below the mean
+- `POSSIBLE DROP` — score is between 1.0 and `threshold` standard deviations below the mean
+- `WITHIN RANGE` — score is within 1.0 standard deviation of the mean
+- `ABOVE BASELINE` — score is above the mean
+- When σ = 0 (all baseline runs scored identically), any deviation is flagged as a regression
+
+**Exit codes:** `0` = no regressions, `1` = regressions detected, `2` = usage error.
+
+**When to use:** After accumulating multiple baseline runs, to determine whether a new run's scores represent a real regression or normal variance. Most valuable when you have 5+ baseline runs per scenario.
+
+---
+
 ## Recommended Workflow
 
 1. **Always run `check_guardrails.sh`** before committing changes to command files — it's free, instant, and checks all 6 commands.
 2. **Run execution evals for the command you modified** — see the table above for the correct filter and expected cost.
 3. **Compare before/after** when modifying commands: name the baseline run with `--output`, run again after changes, then use `compare_results.sh` to identify regressions.
 4. **Cross-tool comparison** when evaluating a new tool: run the same scenarios with `--tool claude` and `--tool opencode`, then compare with `--tool-diff`.
+5. **Statistical baseline comparison** when you have 5+ saved runs: use `statistical_baseline.sh --compare <run>` to check whether a new run's L3 scores fall within the established distribution. This is more reliable than a two-run diff because it accounts for normal variance.
 
 Note: `sdlc_implement_change` has a golden quality scenario but requires an Android SDK environment. The L3 judge evaluation works without the SDK.
 
