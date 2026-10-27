@@ -14,7 +14,7 @@ An example of its usage can be found in [venice](https://github.com/guidovezzoni
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | **Autonomous multi-step reasoning** | Each command chains 15+ sequential steps, making decisions at each gate without human intervention                                    |
 | **Sub-agent orchestration**         | All four commands delegate self-contained steps to cheaper sub-agents (Sonnet for reasoning, Haiku for mechanical tasks), each with a fresh context window |
-| **Execution evals**                 | Bash-based [eval harness](docs/sdlc/evals/README.md) runs each SDLC command against controlled fixtures, asserts on actual agent behaviour, and produces JSON results for regression tracking |
+| **5-layer eval framework**          | [21 eval scenarios](docs/sdlc/evals/README.md) across 5 independent layers — from free `grep`-based guardrails (L1) through structural assertions (L2), LLM-as-judge scoring against golden references (L3), build verification (L4), to behavioural edge-case testing (L5) — with regression comparison, candidate artifact preservation, and cross-tool support |
 | **Tool use**                        | The agent drives git, Gradle, adb, static analysis, and Claude Code's security scanners directly                                      |
 | **Self-healing loops**              | Failed tests or security findings trigger automatic fix-and-retry cycles                                                              |
 | **On-device verification**          | The agent installs the app on a physical device, interacts with it via UIAutomator, and verifies behaviour autonomously               |
@@ -227,6 +227,36 @@ The fastest option — compresses the SDLC into two phases (Think, Build & Check
 │    /sdlc_exp_vibe_a_story        │  Two-phase fast run
 └──────────────────────────────────┘
 ```
+
+## Eval Framework
+
+SDLC commands are testable programs — the AI agent is the runtime, not the thing under test. The [eval harness](docs/sdlc/evals/README.md) runs each command against controlled fixtures and checks that correct behaviour happens: actual tool calls, file side effects, and git operations.
+
+### Eval Layers
+
+| Layer | Name | What it checks | Cost |
+|:-----:|------|----------------|------|
+| **L1** | Guardrail | `grep`-based pattern matching on command markdown files | Free — no API calls |
+| **L2** | Structural | Deterministic assertions on command output: file existence, section presence, side effects | Uses rate-limit budget |
+| **L3** | Judge | LLM-as-judge scoring against golden references with per-criterion rubrics | 1 API call per command |
+| **L4** | Functional | Build and test verification (`./gradlew check`, coverage) | Requires Android SDK |
+| **L5** | Behavioural | Edge cases, gate failures, precondition violations | Uses rate-limit budget |
+
+### Golden References and LLM-as-Judge
+
+Each core command (`open_story`, `propose_change`, `implement_change`, `verify_story`) has a **golden reference** — a known-good output from a successful pipeline run — plus a **per-criterion rubric** that defines what each score level means. The L3 judge scores the candidate output against the reference on dimensions like section completeness, BDD discipline, gate coverage, and content preservation.
+
+Candidate artifacts are saved after each run, so the judge can be re-run independently (different model, updated rubric) without re-executing the expensive command.
+
+### 21 Scenarios Across 8 Commands
+
+All 8 SDLC commands are covered — from golden quality evaluations of the 4 core commands to behavioural scenarios testing dirty-state handling, precondition failures, and ambiguous requirements. See the [eval README](docs/sdlc/evals/README.md) for the full scenario matrix.
+
+### Regression Comparison
+
+`compare_results.sh` diffs two runs and reports regressions, improvements, per-criterion L3 score changes, and timing deltas — supporting named runs, `latest` shorthand, and cross-tool comparison.
+
+---
 
 ## Key Design Decisions
 
