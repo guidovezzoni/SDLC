@@ -176,20 +176,23 @@ Arguments can be a run directory name, `latest`, or a full path to an aggregate 
 Reads L3 scores from all saved runs and computes per-criterion statistics (mean, standard deviation, min, max). Optionally compares a single run against the baseline distribution using z-scores to detect regressions.
 
 ```bash
-# Show L3 score statistics across all saved runs
-./docs/sdlc/evals/statistical_baseline.sh
+# Show L3 score statistics across named baseline runs
+./docs/sdlc/evals/statistical_baseline.sh baseline_os_1 baseline_os_2 baseline_os_3 baseline_os_4 baseline_os_5
+
+# Use a glob pattern for all baselines of one scenario
+./docs/sdlc/evals/statistical_baseline.sh baseline_os_*
 
 # Include pass rates and timing statistics
-./docs/sdlc/evals/statistical_baseline.sh --all
+./docs/sdlc/evals/statistical_baseline.sh --all baseline_os_*
 
-# Compare a specific run against the baseline distribution
-./docs/sdlc/evals/statistical_baseline.sh --compare baseline5_5_fix2
+# Compare a new run against the baseline distribution
+./docs/sdlc/evals/statistical_baseline.sh --compare latest -- baseline_os_*
 
 # Machine-readable JSON output
-./docs/sdlc/evals/statistical_baseline.sh --json
+./docs/sdlc/evals/statistical_baseline.sh --json baseline_impl_*
 
 # Custom z-score threshold (default: 1.5)
-./docs/sdlc/evals/statistical_baseline.sh --compare my_run --threshold 2.0
+./docs/sdlc/evals/statistical_baseline.sh --compare my_run --threshold 2.0 -- baseline_os_*
 ```
 
 **Comparison verdicts:**
@@ -205,13 +208,50 @@ Reads L3 scores from all saved runs and computes per-criterion statistics (mean,
 
 ---
 
+### Baseline Data Management
+
+Baseline run directories (`results/runs/baseline_*`) contain the `aggregate.json` files that `statistical_baseline.sh` reads. Without them, the `--compare` feature has nothing to compare against.
+
+**Should baselines be committed?** Yes — the `aggregate.json` files are small (~2KB each) and represent hours of compute and API cost to regenerate. Commit at least the aggregate files so any clone can run `--compare` immediately.
+
+**When to recreate baselines:**
+
+| Change | Invalidates baselines? | Why |
+|--------|:----------------------:|-----|
+| Command `.md` file updated | Yes | The instructions being scored changed |
+| Rubric/judge prompt updated | Yes | The scoring criteria shifted |
+| Judge model changed | Yes | Different judge, different calibration |
+| Golden reference repo updated | Yes | The reference the command operates on changed |
+| New scenario added | Partial | Only the new scenario needs baselines |
+| Unrelated changes (README, scripts) | No | Baselines are still valid |
+| Model under test upgraded | **No** | That is exactly what `--compare` is for |
+
+**Naming convention:** `baseline_<prefix>_<n>` — see the table below.
+
+| Prefix | Scenario |
+|--------|----------|
+| `baseline_os_` | `open_story_golden_quality` |
+| `baseline_pc_` | `propose_change_golden_quality` |
+| `baseline_impl_` | `implement_change_golden_quality` |
+| `baseline_vs_` | `verify_story_golden_quality` |
+
+**Creating baselines:** Run 5 repetitions per scenario:
+
+```bash
+for i in 1 2 3 4 5; do
+  ./docs/sdlc/evals/run_evals.sh --output baseline_os_$i open_story_golden_quality
+done
+```
+
+---
+
 ## Recommended Workflow
 
 1. **Always run `check_guardrails.sh`** before committing changes to command files — it's free, instant, and checks all 6 commands.
 2. **Run execution evals for the command you modified** — see the table above for the correct filter and expected cost.
 3. **Compare before/after** when modifying commands: name the baseline run with `--output`, run again after changes, then use `compare_results.sh` to identify regressions.
 4. **Cross-tool comparison** when evaluating a new tool: run the same scenarios with `--tool claude` and `--tool opencode`, then compare with `--tool-diff`.
-5. **Statistical baseline comparison** when you have 5+ saved runs: use `statistical_baseline.sh --compare <run>` to check whether a new run's L3 scores fall within the established distribution. This is more reliable than a two-run diff because it accounts for normal variance.
+5. **Statistical baseline comparison** when you have 5+ saved runs: use `statistical_baseline.sh --compare <run> -- baseline_*` to check whether a new run's L3 scores fall within the established distribution. This is more reliable than a two-run diff because it accounts for normal variance.
 
 Note: `sdlc_implement_change` has a golden quality scenario but requires an Android SDK environment. The L3 judge evaluation works without the SDK.
 
@@ -348,14 +388,21 @@ docs/sdlc/evals/
 │   ├── project_doctor_*.sh            # L2: project doctor scenarios
 │   ├── exp_four_in_one_dirty_state.sh
 │   └── exp_vibe_a_story_dirty_state.sh
-└── results/                           # Gitignored run outputs
+├── statistical_baseline.sh             # Statistical baseline and z-score comparison
+└── results/                           # Run outputs (mostly gitignored)
     ├── runs/
-    │   ├── 2026-10-23T191644_claude/  # Auto-named: <timestamp>_<tool>
+    │   ├── baseline_os_1/             # Committed baseline: open_story run 1 of 5
+    │   │   └── aggregate.json         #   (only aggregate.json is committed)
+    │   ├── baseline_os_2/ … _5/
+    │   ├── baseline_pc_1/ … _5/       # Committed baseline: propose_change
+    │   ├── baseline_vs_1/ … _5/       # Committed baseline: verify_story
+    │   ├── baseline_impl_1/ … _5/     # Committed baseline: implement_change
+    │   ├── 2026-10-23T191644_claude/  # Auto-named: <timestamp>_<tool> (gitignored)
     │   │   ├── aggregate.json
     │   │   ├── <scenario>.json
     │   │   ├── <scenario>_candidate/
     │   │   └── <scenario>_output.txt
-    │   ├── my_baseline/               # Custom-named via --output
+    │   ├── my_baseline/               # Custom-named via --output (gitignored)
     │   └── latest -> my_baseline/     # Symlink to most recent run
     └── .gitkeep
 ```

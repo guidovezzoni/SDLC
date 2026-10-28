@@ -65,7 +65,7 @@ low, well-understood variance. Phase 3 (rubric tuning) is optional — the gaps 
 choice (the golden reference intentionally includes some implementation guidance), not a rubric bug.
 Tuning can be done later if the gaps cause false positives in comparisons.
 
-### Phase 4-7: Command Execution Baselines (IN PROGRESS — 1/20 runs complete)
+### Phase 4-7: Command Execution Baselines (COMPLETE — 20/20 runs)
 
 **Purpose:** Run each golden-quality scenario 5 times to build per-scenario statistical distributions.
 
@@ -165,7 +165,7 @@ Tuning can be done later if the gaps cause false positives in comparisons.
 
 **Purpose:** Build `statistical_baseline.sh` to compute and compare against distributions.
 
-**Status:** Script written, tested, and committed to working tree (unstaged, new file).
+**Status:** Script written, tested, and committed.
 
 **Capabilities:**
 - Computes per-criterion statistics (mean, stdev, min, max) across any set of runs
@@ -177,45 +177,19 @@ Tuning can be done later if the gaps cause false positives in comparisons.
 
 ---
 
-## Prerequisites for Continuing
+## Usage: Comparing a Future Run Against Baselines
 
-1. **Environment variables must be set:**
-   ```bash
-   export ANTHROPIC_API_KEY=sk-...
-   export EVAL_JUDGE_MODEL=claude-sonnet-5-5
-   ```
+```bash
+# Set env vars for L3 judge
+export ANTHROPIC_API_KEY=sk-...
+export EVAL_JUDGE_MODEL=claude-sonnet-5-5
 
-2. **Run commands:**
-   ```bash
-   # Open story (fast, ~4 min each)
-   ./docs/sdlc/evals/run_evals.sh --output baseline_os_2 open_story_golden_quality
-   ./docs/sdlc/evals/run_evals.sh --output baseline_os_3 open_story_golden_quality
-   ./docs/sdlc/evals/run_evals.sh --output baseline_os_4 open_story_golden_quality
-   ./docs/sdlc/evals/run_evals.sh --output baseline_os_5 open_story_golden_quality
+# Run a new eval
+./docs/sdlc/evals/run_evals.sh --output my_new_run open_story_golden_quality
 
-   # Propose change (~5 min each)
-   ./docs/sdlc/evals/run_evals.sh --output baseline_pc_1 propose_change_golden_quality
-   # ... through baseline_pc_5
-
-   # Verify story (~20 min each)
-   ./docs/sdlc/evals/run_evals.sh --output baseline_vs_1 verify_story_golden_quality
-   # ... through baseline_vs_5
-
-   # Implement change (~24 min each)
-   ./docs/sdlc/evals/run_evals.sh --output baseline_impl_1 implement_change_golden_quality
-   # ... through baseline_impl_5
-   ```
-
-3. **After all runs, compute statistics:**
-   ```bash
-   ./docs/sdlc/evals/statistical_baseline.sh baseline_os_1 baseline_os_2 baseline_os_3 baseline_os_4 baseline_os_5
-   ./docs/sdlc/evals/statistical_baseline.sh --all baseline_impl_1 baseline_impl_2 baseline_impl_3 baseline_impl_4 baseline_impl_5
-   ```
-
-4. **Compare a future run:**
-   ```bash
-   ./docs/sdlc/evals/statistical_baseline.sh --compare latest -- baseline_os_*
-   ```
+# Compare against baseline distribution
+./docs/sdlc/evals/statistical_baseline.sh --compare my_new_run -- baseline_os_*
+```
 
 ---
 
@@ -236,9 +210,9 @@ Baseline runs follow this pattern: `baseline_<scenario>_<n>`
 
 | File | Status | Description |
 |------|--------|-------------|
-| `docs/sdlc/evals/statistical_baseline.sh` | New (unstaged) | Statistical baseline computation script |
-| `docs/sdlc/evals/README.md` | Modified (unstaged) | Added documentation for statistical_baseline.sh |
-| `docs/improvements/sdlc-eval-repetition-variance.md` | New | This plan and results document |
+| `docs/sdlc/evals/statistical_baseline.sh` | Committed | Statistical baseline computation script |
+| `docs/sdlc/evals/README.md` | Committed | Added documentation for statistical_baseline.sh |
+| `docs/improvements/sdlc-eval-repetition-variance.md` | Committed | This plan and results document |
 
 ---
 
@@ -260,9 +234,9 @@ All runs stored under `docs/sdlc/evals/results/runs/`:
 | baseline_pc_5 | propose_change | PASS | 5/5/5/4/3/4 | 300s |
 | baseline_vs_1 | verify_story | PASS | 10/5/1/3 | 697s |
 | baseline_vs_2 | verify_story | PASS | 10/5/1/5 | 833s |
-| baseline_vs_3 | verify_story | PASS | 10/5/1/5 | ~800s |
-| baseline_vs_4 | verify_story | PASS | 10/5/1/4 | ~780s |
-| baseline_vs_5 | verify_story | PASS | 9/5/1/3 | ~830s |
+| baseline_vs_3 | verify_story | PASS | 10/5/1/5 | 781s |
+| baseline_vs_4 | verify_story | PASS | 10/5/1/4 | 814s |
+| baseline_vs_5 | verify_story | PASS | 9/5/1/3 | 817s |
 | baseline_impl_1 | implement_change | PASS | 28/5/4/4 | 1152s |
 | baseline_impl_2 | implement_change | PASS | 29/5/4/4 | 1173s |
 | baseline_impl_3 | implement_change | PASS | 27/5/4/4 | 780s |
@@ -276,7 +250,6 @@ All runs stored under `docs/sdlc/evals/results/runs/`:
 | Action | Priority | Description |
 |--------|----------|-------------|
 | Investigate `outcome_justified` rubric | High | σ=1.0 makes this criterion unreliable for regression detection. Review rubric wording and judge prompt for ambiguity. |
-| Commit baseline data | Medium | Stage and commit `statistical_baseline.sh`, README changes, and this document. |
 | Test `--compare` workflow | Low | Run a future eval and use `statistical_baseline.sh --compare latest -- baseline_os_*` to confirm the z-score comparison works end-to-end. |
 
 ---
